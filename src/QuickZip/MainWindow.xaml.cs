@@ -861,6 +861,7 @@ public partial class MainWindow : Window
     private void About_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
+        LogHelper.Info("打开关于窗口");
         var dialog = new AboutWindow(_engine.EngineVersion) { Owner = this };
         dialog.ShowDialog();
     }

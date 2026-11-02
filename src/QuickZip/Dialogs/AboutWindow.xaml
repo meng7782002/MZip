@@ -24,6 +24,7 @@
             <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
                 <TextBlock Text="QuickZip" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
                 <TextBlock Text="版本 1.0.0" FontSize="12" Foreground="{StaticResource SubTextBrush}" Margin="0,3,0,0" />
+                <TextBlock Text="西安极速聚米软件科技有限公司" FontSize="12" Foreground="{StaticResource SubTextBrush}" Margin="0,3,0,0" />
             </StackPanel>
         </StackPanel>
 
@@ -40,8 +41,12 @@
             </StackPanel>
         </Border>
 
-        <TextBlock Grid.Row="3" Text="RAR 为专有格式，本程序仅提供解压能力，不支持创建 RAR 压缩包。"
-                   TextWrapping="Wrap" FontSize="12" Foreground="#9AA7BC" Margin="0,14,0,0" />
+        <StackPanel Grid.Row="3" Margin="0,14,0,0">
+            <TextBlock Text="RAR 为专有格式，本程序仅提供解压能力，不支持创建 RAR 压缩包。"
+                       TextWrapping="Wrap" FontSize="12" Foreground="#9AA7BC" />
+            <TextBlock Text="版权所有 © 西安极速聚米软件科技有限公司"
+                       TextWrapping="Wrap" FontSize="12" Foreground="#9AA7BC" Margin="0,6,0,0" />
+        </StackPanel>
 
         <Button Grid.Row="4" Content="关闭" Style="{StaticResource PrimaryButton}" MinWidth="96"
                 HorizontalAlignment="Right" Click="Close_Click" IsDefault="True" />

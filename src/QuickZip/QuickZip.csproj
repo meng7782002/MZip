@@ -10,6 +10,8 @@
     <RootNamespace>QuickZip</RootNamespace>
     <AssemblyTitle>QuickZip 压缩解压工具</AssemblyTitle>
     <Product>QuickZip</Product>
+    <Company>西安极速聚米软件科技有限公司</Company>
+    <Copyright>版权所有 © 西安极速聚米软件科技有限公司</Copyright>
     <Version>1.0.0</Version>
     <ApplicationIcon>Assets\QuickZip.ico</ApplicationIcon>
   </PropertyGroup>
