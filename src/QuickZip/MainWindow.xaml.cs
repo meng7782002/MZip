@@ -61,6 +61,26 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (App.StartupCompressPaths is { Count: > 0 } compressPaths)
+        {
+            Dispatcher.BeginInvoke(new Action(async () => await QuickCompressAsync(compressPaths)));
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(App.StartupExtractHerePath))
+        {
+            string path = App.StartupExtractHerePath!;
+            Dispatcher.BeginInvoke(new Action(async () => await QuickExtractHereAsync(path)));
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(App.StartupExtractToPath))
+        {
+            string path = App.StartupExtractToPath!;
+            Dispatcher.BeginInvoke(new Action(async () => await QuickExtractToAsync(path)));
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(App.StartupArchivePath) && File.Exists(App.StartupArchivePath))
         {
             string path = App.StartupArchivePath!;
@@ -256,12 +276,18 @@ public partial class MainWindow : Window
         }
 
         List<string>? entries = selectedItems?.Select(i => i.FullPath).ToList();
+        await RunExtractionAsync(outputDirectory, entries, selectedItems?.Count, mode);
+    }
+
+    /// <summary>执行解压（含密码重试、进度、取消），供界面解压与右键“解压到本目录”复用</summary>
+    private async Task RunExtractionAsync(string outputDirectory, List<string>? entries, int? selectedCount, string mode)
+    {
         var progress = new Progress<OperationProgress>(OnProgress);
         string? password = _password;
 
         while (true)
         {
-            BeginBusy(selectedItems == null ? "正在解压全部内容…" : $"正在解压 {selectedItems.Count} 个条目…");
+            BeginBusy(selectedCount == null ? "正在解压全部内容…" : $"正在解压 {selectedCount} 个条目…");
             try
             {
                 await _engine.ExtractAsync(_archivePath!, outputDirectory, password, entries, mode, progress, _cts!.Token);
@@ -290,7 +316,7 @@ public partial class MainWindow : Window
             catch (SevenZipException ex) when (ex.IsPasswordProblem)
             {
                 EndBusy();
-                var passwordDialog = new PasswordDialog(Path.GetFileName(_archivePath), password != null) { Owner = this };
+                var passwordDialog = new PasswordDialog(Path.GetFileName(_archivePath!), password != null) { Owner = this };
                 if (passwordDialog.ShowDialog() != true || string.IsNullOrEmpty(passwordDialog.Password))
                 {
                     SetStatus("已取消解压");
@@ -319,6 +345,137 @@ public partial class MainWindow : Window
         string name = Path.GetFileNameWithoutExtension(_archivePath!);
         if (string.IsNullOrWhiteSpace(name)) name = "解压结果";
         return Path.Combine(baseDirectory, name);
+    }
+
+    // ==================== Windows 右键菜单入口 ====================
+
+    /// <summary>右键“使用 QuickZip 压缩”：在来源所在目录生成压缩包并打开</summary>
+    private async Task QuickCompressAsync(IReadOnlyList<string> sourcePaths)
+    {
+        if (_busy) return;
+
+        List<string> sources = sourcePaths
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Where(p => File.Exists(p) || Directory.Exists(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (sources.Count == 0)
+        {
+            LogHelper.Warn("右键压缩：来源均不存在，已取消");
+            SetStatus("没有可压缩的文件");
+            return;
+        }
+
+        string first = sources[0];
+        string? parentDirectory = Directory.Exists(first)
+            ? Path.GetDirectoryName(first.TrimEnd(Path.DirectorySeparatorChar))
+            : Path.GetDirectoryName(first);
+        if (string.IsNullOrWhiteSpace(parentDirectory)) parentDirectory = AppContext.BaseDirectory;
+
+        string name;
+        if (sources.Count == 1)
+        {
+            name = Directory.Exists(first)
+                ? new DirectoryInfo(first).Name
+                : Path.GetFileNameWithoutExtension(first);
+        }
+        else
+        {
+            name = new DirectoryInfo(first).Parent?.Name ?? "压缩包";
+        }
+        if (string.IsNullOrWhiteSpace(name)) name = "压缩包";
+
+        string format = string.Equals(Settings.LastCompressFormat, "zip", StringComparison.OrdinalIgnoreCase) ? "zip" : "7z";
+        string targetPath = BuildUniqueFilePath(Path.Combine(parentDirectory, name + "." + format));
+
+        var options = new CreateArchiveOptions
+        {
+            Format = format,
+            Level = Settings.CompressionLevel,
+            TargetPath = targetPath,
+            Sources = sources
+        };
+
+        LogHelper.Info($"右键压缩：{sources.Count} 个来源 → {targetPath}");
+        var progress = new Progress<OperationProgress>(OnProgress);
+        BeginBusy("正在创建压缩包…");
+        try
+        {
+            await _engine.CreateAsync(options, progress, _cts!.Token);
+            EndBusy();
+            SetStatus("压缩包创建完成：" + targetPath);
+            LogHelper.Info("右键压缩完成：" + targetPath);
+            await OpenArchiveAsync(targetPath);
+        }
+        catch (OperationCanceledException)
+        {
+            EndBusy();
+            SetStatus("已取消压缩");
+            LogHelper.Info("用户取消右键压缩");
+        }
+        catch (Exception ex)
+        {
+            EndBusy();
+            LogHelper.Error("右键压缩失败：" + targetPath, ex);
+            MessageBox.Show(this, ex.Message, "创建压缩包失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+            SetStatus("创建压缩包失败");
+        }
+    }
+
+    /// <summary>右键“解压到本目录”：解压到压缩包所在目录</summary>
+    private async Task QuickExtractHereAsync(string archivePath)
+    {
+        if (!File.Exists(archivePath))
+        {
+            LogHelper.Warn("右键解压：文件不存在 " + archivePath);
+            MessageBox.Show(this, "找不到压缩包文件：\n" + archivePath, "解压", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        await OpenArchiveAsync(archivePath);
+        if (string.IsNullOrEmpty(_archivePath)) return;
+
+        string outputDirectory = Path.GetDirectoryName(_archivePath) ?? AppContext.BaseDirectory;
+        string mode = Settings.OverwriteMode;
+        if (string.Equals(mode, "Ask", StringComparison.OrdinalIgnoreCase))
+        {
+            // 一键解压不打断用户，覆盖策略为“询问”时按直接覆盖处理
+            mode = "Overwrite";
+        }
+        LogHelper.Info($"右键解压到本目录：{_archivePath} → {outputDirectory}（覆盖策略 {mode}）");
+        await RunExtractionAsync(outputDirectory, null, null, mode);
+    }
+
+    /// <summary>右键“解压到指定目录…”：打开压缩包后选择目录并解压</summary>
+    private async Task QuickExtractToAsync(string archivePath)
+    {
+        if (!File.Exists(archivePath))
+        {
+            LogHelper.Warn("右键解压：文件不存在 " + archivePath);
+            MessageBox.Show(this, "找不到压缩包文件：\n" + archivePath, "解压", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        await OpenArchiveAsync(archivePath);
+        if (string.IsNullOrEmpty(_archivePath)) return;
+        await ExtractAsync(null);
+    }
+
+    /// <summary>同名文件已存在时追加 (1)、(2) 等序号</summary>
+    private static string BuildUniqueFilePath(string path)
+    {
+        if (!File.Exists(path)) return path;
+
+        string directory = Path.GetDirectoryName(path) ?? string.Empty;
+        string name = Path.GetFileNameWithoutExtension(path);
+        string extension = Path.GetExtension(path);
+        for (int index = 1; index < 1000; index++)
+        {
+            string candidate = Path.Combine(directory, $"{name} ({index}){extension}");
+            if (!File.Exists(candidate)) return candidate;
+        }
+        return path;
     }
 
     // ==================== 新建 / 添加 / 删除 ====================
