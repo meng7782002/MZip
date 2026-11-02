@@ -686,7 +686,9 @@ public partial class MainWindow : Window
         _cts = new CancellationTokenSource();
         StatusText.Text = status;
         OperationProgressBar.Value = 0;
+        OperationProgressBar.Visibility = Visibility.Visible;
         ProgressText.Text = string.Empty;
+        ProgressText.Visibility = Visibility.Visible;
         CancelButton.Visibility = Visibility.Visible;
         UpdateEmptyState();
         UpdateCommandState();
@@ -698,7 +700,9 @@ public partial class MainWindow : Window
         _cts?.Dispose();
         _cts = null;
         OperationProgressBar.Value = 0;
+        OperationProgressBar.Visibility = Visibility.Collapsed;
         ProgressText.Text = string.Empty;
+        ProgressText.Visibility = Visibility.Collapsed;
         CancelButton.Visibility = Visibility.Collapsed;
         UpdateEmptyState();
         UpdateCommandState();

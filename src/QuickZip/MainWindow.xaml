@@ -226,17 +226,42 @@
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                     <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="名称" Width="*" SortMemberPath="Name">
+                        <DataGridTemplateColumn Header="名称" Width="*" SortMemberPath="FullPath"
+                                                HeaderStyle="{StaticResource LeftHeader}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets" FontSize="15"
-                                                   Foreground="#7C8CA5" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="11"
-                                                   Foreground="#B8860B" VerticalAlignment="Center" Margin="6,0,0,0">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource FolderIconGeometry}" Fill="#7C8CA5" Stretch="Uniform"
+                                              Width="17" Height="15" VerticalAlignment="Center" Margin="0,0,8,0">
+                                            <Path.Style>
+                                                <Style TargetType="Path">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsFolder}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Path.Style>
+                                        </Path>
+                                        <Path Data="{StaticResource FileIconGeometry}" Fill="#7C8CA5" Stretch="Uniform"
+                                              Width="15" Height="15" VerticalAlignment="Center" Margin="0,0,8,0">
+                                            <Path.Style>
+                                                <Style TargetType="Path">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsFolder}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Path.Style>
+                                        </Path>
+                                        <TextBlock Text="{Binding FullPath}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <Border Background="#FFF4DC" CornerRadius="4" Padding="5,1"
+                                                VerticalAlignment="Center" Margin="8,0,0,0">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsEncrypted}" Value="False">
@@ -244,8 +269,9 @@
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
+                                            </Border.Style>
+                                            <TextBlock Text="加密" FontSize="11" Foreground="#A8741A" />
+                                        </Border>
                                     </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -253,7 +279,7 @@
 
                         <DataGridTextColumn Header="大小" Width="110"
                                             Binding="{Binding Size, Converter={StaticResource SizeConverter}}"
-                                            SortMemberPath="Size">
+                                            SortMemberPath="Size" HeaderStyle="{StaticResource RightHeader}">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="HorizontalAlignment" Value="Right" />
@@ -264,7 +290,7 @@
 
                         <DataGridTextColumn Header="压缩后" Width="110"
                                             Binding="{Binding PackedSize, Converter={StaticResource SizeConverter}}"
-                                            SortMemberPath="PackedSize">
+                                            SortMemberPath="PackedSize" HeaderStyle="{StaticResource RightHeader}">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="HorizontalAlignment" Value="Right" />
@@ -273,7 +299,8 @@
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
 
-                        <DataGridTextColumn Header="压缩率" Width="90" Binding="{Binding RatioText}" SortMemberPath="Ratio">
+                        <DataGridTextColumn Header="压缩率" Width="90" Binding="{Binding RatioText}" SortMemberPath="Ratio"
+                                            HeaderStyle="{StaticResource RightHeader}">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="HorizontalAlignment" Value="Right" />
@@ -314,8 +341,8 @@
             <Border x:Name="EmptyState" Background="White" CornerRadius="12"
                     BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="58"
-                               Foreground="#C9D4E8" HorizontalAlignment="Center" />
+                    <Path Data="{StaticResource FolderIconGeometry}" Fill="#C9D4E8" Stretch="Uniform"
+                          Width="64" Height="56" HorizontalAlignment="Center" />
                     <TextBlock Text="拖入压缩包，或点击下方按钮打开" FontSize="14"
                                Foreground="{StaticResource SubTextBrush}" Margin="0,16,0,0" HorizontalAlignment="Center" />
                     <Button x:Name="EmptyOpenButton" Content="打开压缩包" Style="{StaticResource PrimaryButton}"
@@ -355,10 +382,12 @@
                            Foreground="#9AA7BC" FontSize="11" Margin="0,0,14,0" />
 
                 <ProgressBar x:Name="OperationProgressBar" Grid.Column="2" Width="240" Height="8"
-                             Style="{StaticResource ThinProgress}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                             Style="{StaticResource ThinProgress}" VerticalAlignment="Center" Margin="0,0,10,0"
+                             Visibility="Collapsed" />
 
                 <TextBlock x:Name="ProgressText" Grid.Column="3" Width="44" TextAlignment="Right"
-                           VerticalAlignment="Center" Foreground="{StaticResource SubTextBrush}" Margin="0,0,10,0" />
+                           VerticalAlignment="Center" Foreground="{StaticResource SubTextBrush}" Margin="0,0,10,0"
+                           Visibility="Collapsed" />
 
                 <Button x:Name="CancelButton" Grid.Column="4" Content="取消" Style="{StaticResource GhostButton}"
                         Padding="12,3" Visibility="Collapsed" Click="Cancel_Click" />

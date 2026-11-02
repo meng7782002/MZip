@@ -19,9 +19,6 @@ namespace QuickZip.Models
         public bool IsEncrypted { get; set; }
         public string Method { get; set; } = string.Empty;
 
-        /// <summary>文件夹图标 / 文件图标（Segoe MDL2 字形）</summary>
-        public string Glyph => IsFolder ? "\uE838" : "\uE7C3";
-
         /// <summary>压缩率（压缩后 / 原始大小）</summary>
         public double Ratio
         {

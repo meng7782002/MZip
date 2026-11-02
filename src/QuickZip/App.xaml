@@ -14,6 +14,10 @@
         <SolidColorBrush x:Key="AccentBrush" Color="#2F6FED" />
         <SolidColorBrush x:Key="AccentLightBrush" Color="#EAF1FF" />
 
+        <!-- 文件夹 / 文件图标（矢量图形，避免字体图标在小尺寸下失真） -->
+        <Geometry x:Key="FolderIconGeometry">M1,4 H6.5 L8.5,5.8 H17 V14.8 H1 Z</Geometry>
+        <Geometry x:Key="FileIconGeometry">M3,1.5 H10.5 L14.5,5.5 V16.5 H3 Z</Geometry>
+
         <!-- 工具栏按钮 -->
         <Style x:Key="ToolButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
@@ -208,6 +212,11 @@
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="BorderBrush" Value="#EAEEF6" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+
+        <Style x:Key="LeftHeader" TargetType="DataGridColumnHeader"
+               BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
             <Setter Property="HorizontalContentAlignment" Value="Left" />
         </Style>
 
