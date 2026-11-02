@@ -38,6 +38,9 @@ QuickZip.slnx
 │  ├─ Services/                  7-Zip 引擎、进程执行、设置、日志、系统集成
 │  ├─ Assets/QuickZip.ico        应用图标
 │  └─ tools/                     7z.exe / 7z.dll / License.txt
+├─ installer/                    Inno Setup 安装脚本与简体中文语言文件
+├─ scripts/build-installer.ps1   一键发布并编译安装包
+├─ dist/                         安装包输出目录（构建生成）
 ├─ tools/                        7-Zip 原始文件
 └─ docs/                         需求、设计、使用说明（按时间前缀分版本）
 ```
@@ -63,6 +66,24 @@ dotnet build QuickZip.slnx -c Release
 src\QuickZip\bin\Release\net8.0-windows\QuickZip.exe
 ```
 
+## 打包安装程序
+
+环境要求：额外安装 [Inno Setup 6](https://jrsoftware.org/isdl.php)（免费可商用）；可执行 `winget install JRSoftware.InnoSetup` 安装。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1
+```
+
+脚本会读取 `QuickZip.csproj` 中的版本号，执行 win-x64 自包含发布到 `build\publish`，再用 Inno Setup 编译出 `dist\QuickZip-<版本>-Setup.exe`。
+
+安装包特性：
+
+- 默认安装到 `%LOCALAPPDATA%\Programs\QuickZip`，当前用户安装，无 UAC
+- 自带 .NET 8 运行时，目标机无需预装
+- 开始菜单快捷方式固定创建，桌面快捷方式可选
+- 卸载保留 `config` 与 `logs` 用户数据
+- 支持静默安装：`QuickZip-1.0.0-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /DIR="D:\Apps\QuickZip"`
+
 ## 命令行参数
 
 | 参数 | 说明 |
@@ -74,9 +95,9 @@ src\QuickZip\bin\Release\net8.0-windows\QuickZip.exe
 
 ## 文档
 
-- [需求规格说明书 v1.3](docs/202611021353_需求规格说明书_v1.3.md)
-- [技术方案设计 v1.4](docs/202611021353_技术方案设计_v1.4.md)
-- [使用说明 v1.3](docs/202611021353_使用说明_v1.3.md)
+- [需求规格说明书 v1.6](docs/202611021708_需求规格说明书_v1.6.md)
+- [技术方案设计 v1.7](docs/202611021708_技术方案设计_v1.7.md)
+- [使用说明 v1.6](docs/202611021708_使用说明_v1.6.md)
 - 历史版本按“年月日时分 + 文档名 + 版本号”保存在 `docs/` 中
 
 ## 日志与问题反馈
@@ -87,4 +108,5 @@ src\QuickZip\bin\Release\net8.0-windows\QuickZip.exe
 ## 授权与致谢
 
 - 压缩引擎为 [7-Zip](https://www.7-zip.org/)，遵循 LGPL 授权，许可文本见 `tools/License.txt`
+- 安装包由 [Inno Setup](https://jrsoftware.org/isinfo.php) 生成；简体中文语言文件取自 [kira-96/Inno-Setup-Chinese-Simplified-Translation](https://github.com/kira-96/Inno-Setup-Chinese-Simplified-Translation)（MIT）
 - 主程序代码版权归项目作者所有
