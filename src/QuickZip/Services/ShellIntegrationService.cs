@@ -17,6 +17,7 @@ namespace QuickZip.Services
         private const string StarCompressKey = @"Software\Classes\*\shell\QuickZip.Compress";
         private const string DirectoryCompressKey = @"Software\Classes\Directory\shell\QuickZip.Compress";
         private const string CapabilitiesKey = @"Software\QuickZip\Capabilities";
+        private const string IconBackupKey = @"Software\QuickZip\IconBackup";
         private const string RegisteredApplicationsKey = @"Software\RegisteredApplications";
 
         private static readonly string[] ArchiveExtensions = { ".zip", ".rar", ".7z" };
@@ -64,6 +65,7 @@ namespace QuickZip.Services
                 extKey.SetValue(null, ProgId);
                 using RegistryKey openWithKey = extKey.CreateSubKey("OpenWithProgids")!;
                 openWithKey.SetValue(ProgId, new byte[0], RegistryValueKind.None);
+                WriteExtensionIcon(extKey, ext);
             }
 
             using (RegistryKey capabilitiesKey = Registry.CurrentUser.CreateSubKey(CapabilitiesKey)!)
@@ -103,9 +105,11 @@ namespace QuickZip.Services
                     }
                     using RegistryKey? openWithKey = extKey.OpenSubKey("OpenWithProgids", writable: true);
                     openWithKey?.DeleteValue(ProgId, throwOnMissingValue: false);
+                    RestoreExtensionIcon(extKey, ext);
                 }
             }
 
+            DeleteKeyTree(IconBackupKey);
             DeleteKeyTree(CapabilitiesKey);
             using (RegistryKey? registeredKey = Registry.CurrentUser.OpenSubKey(RegisteredApplicationsKey, writable: true))
             {
@@ -191,6 +195,82 @@ namespace QuickZip.Services
             key.SetValue("MultiSelectModel", "Single");
             using RegistryKey commandKey = key.CreateSubKey("command")!;
             commandKey.SetValue(null, QuotedExe + argument + " \"%1\"");
+        }
+
+        /// <summary>写入扩展名文件图标，并备份原有 DefaultIcon 值</summary>
+        private static void WriteExtensionIcon(RegistryKey extKey, string ext)
+        {
+            try
+            {
+                using RegistryKey backupRoot = Registry.CurrentUser.CreateSubKey(IconBackupKey)!;
+                if (backupRoot.OpenSubKey(ext) == null)
+                {
+                    using RegistryKey? iconKey = extKey.OpenSubKey("DefaultIcon");
+                    string original = iconKey?.GetValue(null)?.ToString() ?? "-";
+                    using RegistryKey backupKey = backupRoot.CreateSubKey(ext)!;
+                    backupKey.SetValue(null, original);
+                    LogHelper.Info($"已备份 {ext} 原文件图标：{original}");
+                }
+
+                using RegistryKey defaultIconKey = extKey.CreateSubKey("DefaultIcon")!;
+                defaultIconKey.SetValue(null, QuotedExeWithIcon);
+                LogHelper.Info($"已设置 {ext} 文件图标：{QuotedExeWithIcon}");
+            }
+            catch (Exception ex)
+            {
+                // 图标写入失败不阻断文件关联注册
+                LogHelper.Error("写入文件图标失败：" + ext, ex);
+            }
+        }
+
+        /// <summary>按备份恢复扩展名文件图标；无备份时仅清除本程序写入的值</summary>
+        private static void RestoreExtensionIcon(RegistryKey extKey, string ext)
+        {
+            try
+            {
+                string? original = null;
+                bool hasBackup = false;
+                using (RegistryKey? backupRoot = Registry.CurrentUser.OpenSubKey(IconBackupKey))
+                using (RegistryKey? backupKey = backupRoot?.OpenSubKey(ext))
+                {
+                    if (backupKey != null)
+                    {
+                        hasBackup = true;
+                        original = backupKey.GetValue(null)?.ToString();
+                    }
+                }
+
+                if (hasBackup)
+                {
+                    if (string.IsNullOrEmpty(original) || original == "-")
+                    {
+                        // 原本没有文件图标：整体删除本程序创建的子键
+                        extKey.DeleteSubKey("DefaultIcon", throwOnMissingSubKey: false);
+                        LogHelper.Info($"已清除 {ext} 文件图标");
+                    }
+                    else
+                    {
+                        using RegistryKey? iconKey = extKey.CreateSubKey("DefaultIcon");
+                        iconKey?.SetValue(null, original);
+                        LogHelper.Info($"已恢复 {ext} 文件图标：{original}");
+                    }
+                }
+                else
+                {
+                    using RegistryKey? iconKey = extKey.OpenSubKey("DefaultIcon", writable: true);
+                    bool isOurs = iconKey != null && string.Equals(iconKey.GetValue(null)?.ToString(), QuotedExeWithIcon, StringComparison.OrdinalIgnoreCase);
+                    iconKey?.Dispose();
+                    if (isOurs)
+                    {
+                        extKey.DeleteSubKey("DefaultIcon", throwOnMissingSubKey: false);
+                        LogHelper.Info($"已清除 {ext} 文件图标");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Error("恢复文件图标失败：" + ext, ex);
+            }
         }
 
         private static void DeleteKeyTree(string keyPath)

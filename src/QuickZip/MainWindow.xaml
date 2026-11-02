@@ -6,6 +6,7 @@
         xmlns:local="clr-namespace:QuickZip"
         mc:Ignorable="d"
         Title="QuickZip 压缩解压工具"
+        Icon="pack://application:,,,/Assets/QuickZip.ico"
         Height="760" Width="1200"
         MinHeight="580" MinWidth="980"
         WindowStartupLocation="CenterScreen"

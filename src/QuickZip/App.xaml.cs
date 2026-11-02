@@ -57,6 +57,7 @@ public partial class App : Application
                 case "--extract-to":
                     StartupExtractToPath = e.Args.Length > 1 ? e.Args[1] : null;
                     break;
+
                 default:
                     StartupArchivePath = e.Args[0];
                     break;
