@@ -46,6 +46,10 @@
                 <MenuItem Header="解压全部…" Click="ExtractAll_Click" />
                 <MenuItem Header="解压选中…" Click="ExtractSelected_Click" />
                 <Separator />
+                <MenuItem Header="全选条目" InputGestureText="Ctrl+A" Click="SelectAllEntries_Click" />
+                <MenuItem Header="复制选中条目" InputGestureText="Ctrl+C" Click="CopyEntries_Click" />
+                <MenuItem Header="粘贴到指定文件夹…" InputGestureText="Ctrl+V" Click="PasteTo_Click" />
+                <Separator />
                 <MenuItem Header="添加文件…" Click="AddFiles_Click" />
                 <MenuItem Header="添加文件夹…" Click="AddFolder_Click" />
                 <MenuItem Header="删除选中" Click="DeleteSelected_Click" />
@@ -222,6 +226,11 @@
                     <DataGrid.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="解压选中…" Click="ExtractSelected_Click" />
+                            <Separator />
+                            <MenuItem Header="全选条目" Click="SelectAllEntries_Click" />
+                            <MenuItem Header="复制选中条目" Click="CopyEntries_Click" />
+                            <MenuItem Header="粘贴到指定文件夹…" Click="PasteTo_Click" />
+                            <Separator />
                             <MenuItem Header="复制条目路径" Click="CopyName_Click" />
                             <MenuItem Header="删除选中" Click="DeleteSelected_Click" />
                         </ContextMenu>

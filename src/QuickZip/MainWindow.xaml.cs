@@ -36,6 +36,11 @@ public partial class MainWindow : Window
     private ArchiveInfo? _archiveInfo;
     private bool _busy;
 
+    // 程序内部剪贴板：复制条目及来源压缩包信息
+    private List<string>? _copiedEntries;
+    private string? _copiedArchivePath;
+    private string? _copiedPassword;
+
     private AppSettings Settings => _settingsService.Current;
 
     public MainWindow()
@@ -279,24 +284,37 @@ public partial class MainWindow : Window
         await RunExtractionAsync(outputDirectory, entries, selectedItems?.Count, mode);
     }
 
-    /// <summary>执行解压（含密码重试、进度、取消），供界面解压与右键“解压到本目录”复用</summary>
-    private async Task RunExtractionAsync(string outputDirectory, List<string>? entries, int? selectedCount, string mode)
+    /// <summary>执行解压（含密码重试、进度、取消），供界面解压、右键解压与粘贴复用</summary>
+    /// <param name="sourceArchivePath">来源压缩包；为空时使用当前打开的压缩包</param>
+    /// <param name="presetPassword">来源压缩包对应的密码（粘贴其他压缩包条目时使用）</param>
+    private async Task RunExtractionAsync(string outputDirectory, List<string>? entries, int? selectedCount, string mode,
+        string? sourceArchivePath = null, string? presetPassword = null)
     {
+        string archivePath = sourceArchivePath ?? _archivePath ?? string.Empty;
+        if (string.IsNullOrEmpty(archivePath))
+        {
+            LogHelper.Warn("解压失败：未指定来源压缩包");
+            return;
+        }
+
         var progress = new Progress<OperationProgress>(OnProgress);
-        string? password = _password;
+        string? password = presetPassword ?? (sourceArchivePath == null ? _password : null);
 
         while (true)
         {
             BeginBusy(selectedCount == null ? "正在解压全部内容…" : $"正在解压 {selectedCount} 个条目…");
             try
             {
-                await _engine.ExtractAsync(_archivePath!, outputDirectory, password, entries, mode, progress, _cts!.Token);
-                _password = password;
+                await _engine.ExtractAsync(archivePath, outputDirectory, password, entries, mode, progress, _cts!.Token);
+                if (sourceArchivePath == null)
+                {
+                    _password = password;
+                }
                 Settings.LastOutputDirectory = outputDirectory;
                 _settingsService.Save();
                 EndBusy();
                 SetStatus("解压完成：" + outputDirectory);
-                LogHelper.Info("解压完成，输出目录：" + outputDirectory);
+                LogHelper.Info($"解压完成，输出目录：{outputDirectory}（来源 {archivePath}）");
 
                 MessageBoxResult ask = MessageBox.Show(this, "解压完成，是否打开输出目录？", "解压完成",
                     MessageBoxButton.YesNo, MessageBoxImage.Information);
@@ -316,7 +334,7 @@ public partial class MainWindow : Window
             catch (SevenZipException ex) when (ex.IsPasswordProblem)
             {
                 EndBusy();
-                var passwordDialog = new PasswordDialog(Path.GetFileName(_archivePath!), password != null) { Owner = this };
+                var passwordDialog = new PasswordDialog(Path.GetFileName(archivePath), password != null) { Owner = this };
                 if (passwordDialog.ShowDialog() != true || string.IsNullOrEmpty(passwordDialog.Password))
                 {
                     SetStatus("已取消解压");
@@ -327,7 +345,7 @@ public partial class MainWindow : Window
             catch (Exception ex)
             {
                 EndBusy();
-                LogHelper.Error("解压失败：" + _archivePath, ex);
+                LogHelper.Error("解压失败：" + archivePath, ex);
                 MessageBox.Show(this, ex.Message, "解压失败", MessageBoxButton.OK, MessageBoxImage.Warning);
                 SetStatus("解压失败");
                 return;
@@ -730,6 +748,97 @@ public partial class MainWindow : Window
         }
     }
 
+    // ==================== 复制 / 粘贴 ====================
+
+    private void SelectAllEntries_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _archivePath == null) return;
+        EntriesGrid.SelectAll();
+        SetStatus($"已全选 {_items.Count} 个条目");
+    }
+
+    private void CopyEntries_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || string.IsNullOrEmpty(_archivePath)) return;
+
+        List<ArchiveItem> selected = GetSelectedEntries();
+        if (selected.Count == 0)
+        {
+            SetStatus("请先选择要复制的条目");
+            return;
+        }
+
+        _copiedEntries = selected.Select(i => i.FullPath).ToList();
+        _copiedArchivePath = _archivePath;
+        _copiedPassword = _password;
+        SetStatus($"已复制 {selected.Count} 个条目，按 Ctrl+V 可粘贴到指定文件夹");
+        LogHelper.Info($"复制条目：{selected.Count} 个，来源 {_archivePath}");
+    }
+
+    private async void PasteTo_Click(object sender, RoutedEventArgs e)
+    {
+        await PasteToAsync();
+    }
+
+    /// <summary>把内部剪贴板中的条目解压到用户选择的文件夹</summary>
+    private async Task PasteToAsync()
+    {
+        LogHelper.Info($"粘贴请求：条目 {_copiedEntries?.Count ?? 0} 个");
+        if (_busy) return;
+
+        if (_copiedEntries == null || _copiedEntries.Count == 0 || string.IsNullOrEmpty(_copiedArchivePath))
+        {
+            MessageBox.Show(this, "剪贴板中没有压缩包条目。\n请先在压缩包中选中条目并复制。", "粘贴",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (!File.Exists(_copiedArchivePath))
+        {
+            LogHelper.Warn("粘贴失败：来源压缩包不存在 " + _copiedArchivePath);
+            MessageBox.Show(this, $"来源压缩包已不存在：\n{_copiedArchivePath}", "粘贴",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        string initialDirectory = Settings.LastOutputDirectory;
+        if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+        {
+            initialDirectory = Path.GetDirectoryName(_copiedArchivePath) ?? AppContext.BaseDirectory;
+        }
+
+        var dialog = new OpenFolderDialog
+        {
+            Title = "粘贴到文件夹",
+            InitialDirectory = initialDirectory
+        };
+        if (dialog.ShowDialog(this) != true || string.IsNullOrWhiteSpace(dialog.FolderName)) return;
+
+        string outputDirectory = dialog.FolderName;
+        try
+        {
+            Directory.CreateDirectory(outputDirectory);
+        }
+        catch (Exception ex)
+        {
+            LogHelper.Error("创建粘贴目标目录失败：" + outputDirectory, ex);
+            MessageBox.Show(this, "无法创建目标目录：" + ex.Message, "粘贴",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        string mode = Settings.OverwriteMode;
+        if (mode == "Ask")
+        {
+            var overwriteDialog = new OverwriteDialog { Owner = this };
+            if (overwriteDialog.ShowDialog() != true) return;
+            mode = overwriteDialog.Mode;
+        }
+
+        LogHelper.Info($"粘贴条目：{_copiedArchivePath} → {outputDirectory}，共 {_copiedEntries.Count} 个，覆盖策略 {mode}");
+        await RunExtractionAsync(outputDirectory, _copiedEntries, _copiedEntries.Count, mode, _copiedArchivePath, _copiedPassword);
+    }
+
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         if (_cts == null) return;
@@ -768,6 +877,27 @@ public partial class MainWindow : Window
             e.Handled = true;
             if (!_busy) Open_Click(sender, e);
             return;
+        }
+        if (Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            if (e.Key == Key.A && _archivePath != null && !_busy)
+            {
+                e.Handled = true;
+                SelectAllEntries_Click(sender, e);
+                return;
+            }
+            if (e.Key == Key.C && _archivePath != null && !_busy)
+            {
+                e.Handled = true;
+                CopyEntries_Click(sender, e);
+                return;
+            }
+            if (e.Key == Key.V && _copiedEntries is { Count: > 0 })
+            {
+                e.Handled = true;
+                await PasteToAsync();
+                return;
+            }
         }
         if (e.Key == Key.F5)
         {
