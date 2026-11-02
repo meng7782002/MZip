@@ -1,4 +1,4 @@
-# QuickZip
+﻿# JsjmZip
 
 一款面向 Windows 10/11 的压缩解压工具，支持 ZIP / 7Z 的创建与修改、RAR 的解压，内置 7-Zip 引擎，并深度集成资源管理器（默认解压程序、右键压缩/解压、统一文件图标）。
 
@@ -22,21 +22,21 @@
 - 设置中可注册为 `.zip` / `.rar` / `.7z` 默认解压程序（仅当前用户 HKCU，无需管理员权限）
 - 一键跳转系统“默认应用”设置页
 - 资源管理器右键菜单：
-  - 文件 / 文件夹 / 多选 → “使用 QuickZip 压缩”，多选自动汇总为一个压缩包
+  - 文件 / 文件夹 / 多选 → “使用 JsjmZip 压缩”，多选自动汇总为一个压缩包
   - `.zip` / `.rar` / `.7z` → “解压到本目录”（解压到同名子文件夹）、“解压到指定目录…”
-- 注册后压缩文件统一显示 QuickZip 图标；取消关联时按备份恢复原图标
+- 注册后压缩文件统一显示 JsjmZip 图标；取消关联时按备份恢复原图标
 
 ## 目录结构
 
 ```
-QuickZip.slnx
-├─ src/QuickZip/                 主程序
+JsjmZip.slnx
+├─ src/JsjmZip/                 主程序
 │  ├─ App.xaml(.cs)              启动与命令行解析
 │  ├─ MainWindow.xaml(.cs)       主界面
 │  ├─ Dialogs/                   创建、密码、覆盖策略、设置、关于
 │  ├─ Models/                    实体类
 │  ├─ Services/                  7-Zip 引擎、进程执行、设置、日志、系统集成
-│  ├─ Assets/QuickZip.ico        应用图标
+│  ├─ Assets/JsjmZip.ico        应用图标
 │  └─ tools/                     7z.exe / 7z.dll / License.txt
 ├─ installer/                    Inno Setup 安装脚本与简体中文语言文件
 ├─ scripts/build-installer.ps1   一键发布并编译安装包
@@ -48,7 +48,7 @@ QuickZip.slnx
 程序运行时在输出目录下生成：
 
 - `config/settings.json`：明文 JSON 设置
-- `logs/quickzip<yyyy-MM-dd>.log`：按天滚动的日志
+- `logs/JsjmZip<yyyy-MM-dd>.log`：按天滚动的日志
 
 ## 构建与运行
 
@@ -57,13 +57,13 @@ QuickZip.slnx
 ```powershell
 git clone <仓库地址>
 cd 解压缩
-dotnet build QuickZip.slnx -c Release
+dotnet build JsjmZip.slnx -c Release
 ```
 
 运行：
 
 ```powershell
-src\QuickZip\bin\Release\net8.0-windows\QuickZip.exe
+src\JsjmZip\bin\Release\net8.0-windows\JsjmZip.exe
 ```
 
 ## 打包安装程序
@@ -74,30 +74,30 @@ src\QuickZip\bin\Release\net8.0-windows\QuickZip.exe
 powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1
 ```
 
-脚本会读取 `QuickZip.csproj` 中的版本号，执行 win-x64 自包含发布到 `build\publish`，再用 Inno Setup 编译出 `dist\QuickZip-<版本>-Setup.exe`。
+脚本会读取 `JsjmZip.csproj` 中的版本号，执行 win-x64 自包含发布到 `build\publish`，再用 Inno Setup 编译出 `dist\JsjmZip-<版本>-Setup.exe`。
 
 安装包特性：
 
-- 默认安装到 `%LOCALAPPDATA%\Programs\QuickZip`，当前用户安装，无 UAC
+- 默认安装到 `%LOCALAPPDATA%\Programs\JsjmZip`，当前用户安装，无 UAC
 - 自带 .NET 8 运行时，目标机无需预装
 - 开始菜单快捷方式固定创建，桌面快捷方式可选
 - 卸载保留 `config` 与 `logs` 用户数据
-- 支持静默安装：`QuickZip-1.0.0-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /DIR="D:\Apps\QuickZip"`
+- 支持静默安装：`JsjmZip-1.0.0-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /DIR="D:\Apps\JsjmZip"`
 
 ## 命令行参数
 
 | 参数 | 说明 |
 | --- | --- |
-| `QuickZip.exe "压缩包路径"` | 打开指定压缩包 |
-| `QuickZip.exe --compress "路径1" ["路径2" …]` | 一键压缩为 7Z |
-| `QuickZip.exe --extract-here "压缩包路径"` | 解压到压缩包同级同名文件夹 |
-| `QuickZip.exe --extract-to "压缩包路径"` | 选择目录后解压 |
+| `JsjmZip.exe "压缩包路径"` | 打开指定压缩包 |
+| `JsjmZip.exe --compress "路径1" ["路径2" …]` | 一键压缩为 7Z |
+| `JsjmZip.exe --extract-here "压缩包路径"` | 解压到压缩包同级同名文件夹 |
+| `JsjmZip.exe --extract-to "压缩包路径"` | 选择目录后解压 |
 
 ## 文档
 
-- [需求规格说明书 v1.6](docs/202611021708_需求规格说明书_v1.6.md)
-- [技术方案设计 v1.7](docs/202611021708_技术方案设计_v1.7.md)
-- [使用说明 v1.6](docs/202611021708_使用说明_v1.6.md)
+- [需求规格说明书 v1.7](docs/202611021759_需求规格说明书_v1.7.md)
+- [技术方案设计 v1.8](docs/202611021759_技术方案设计_v1.8.md)
+- [使用说明 v1.7](docs/202611021759_使用说明_v1.7.md)
 - 历史版本按“年月日时分 + 文档名 + 版本号”保存在 `docs/` 中
 
 ## 日志与问题反馈

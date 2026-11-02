@@ -1,13 +1,13 @@
 ﻿<#
 .SYNOPSIS
-    构建 QuickZip Windows 安装包。
+    构建 JsjmZip Windows 安装包。
 .DESCRIPTION
     1. 读取项目版本号（可由 -Version 覆盖）
     2. dotnet publish 自包含发布到 build\publish
-    3. 定位 ISCC.exe 并编译 installer\QuickZip.iss
-    4. 输出 dist\QuickZip-<版本>-Setup.exe
+    3. 定位 ISCC.exe 并编译 installer\JsjmZip.iss
+    4. 输出 dist\JsjmZip-<版本>-Setup.exe
 .PARAMETER Version
-    安装包版本号，默认读取 QuickZip.csproj 中的 Version。
+    安装包版本号，默认读取 JsjmZip.csproj 中的 Version。
 .PARAMETER SkipPublish
     跳过发布步骤，直接使用已有的 build\publish 内容编译安装包。
 #>
@@ -17,7 +17,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$logFile = 'F:\AITEMP\quickzip-installer-build.log'
+$logFile = 'F:\AITEMP\JsjmZip-installer-build.log'
 
 function Write-BuildLog([string]$message) {
     $line = "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $message
@@ -33,9 +33,9 @@ function Write-BuildLog([string]$message) {
 
 try {
     $repoRoot = Split-Path -Parent $PSScriptRoot
-    $csproj = Join-Path $repoRoot 'src\QuickZip\QuickZip.csproj'
+    $csproj = Join-Path $repoRoot 'src\JsjmZip\JsjmZip.csproj'
     $publishDir = Join-Path $repoRoot 'build\publish'
-    $issFile = Join-Path $repoRoot 'installer\QuickZip.iss'
+    $issFile = Join-Path $repoRoot 'installer\JsjmZip.iss'
     $distDir = Join-Path $repoRoot 'dist'
 
     if (-not $Version) {
@@ -54,7 +54,7 @@ try {
         Write-BuildLog '已跳过发布步骤'
     }
 
-    if (-not (Test-Path (Join-Path $publishDir 'QuickZip.exe'))) { throw "发布目录缺少 QuickZip.exe：$publishDir" }
+    if (-not (Test-Path (Join-Path $publishDir 'JsjmZip.exe'))) { throw "发布目录缺少 JsjmZip.exe：$publishDir" }
 
     $iscc = $env:INNO_SETUP_ISCC
     if (-not $iscc -or -not (Test-Path $iscc)) {
@@ -83,7 +83,7 @@ try {
     & $iscc "/DMyAppVersion=$Version" $issFile
     if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败，退出码 $LASTEXITCODE" }
 
-    $setup = Join-Path $distDir "QuickZip-$Version-Setup.exe"
+    $setup = Join-Path $distDir "JsjmZip-$Version-Setup.exe"
     if (-not (Test-Path $setup)) { throw "未生成安装包：$setup" }
 
     $sizeMb = [Math]::Round((Get-Item $setup).Length / 1MB, 1)
