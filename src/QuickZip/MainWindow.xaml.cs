@@ -436,7 +436,34 @@ public partial class MainWindow : Window
         await OpenArchiveAsync(archivePath);
         if (string.IsNullOrEmpty(_archivePath)) return;
 
-        string outputDirectory = Path.GetDirectoryName(_archivePath) ?? AppContext.BaseDirectory;
+        string archiveDirectory = Path.GetDirectoryName(_archivePath) ?? AppContext.BaseDirectory;
+        string folderName = Path.GetFileNameWithoutExtension(_archivePath);
+        if (string.IsNullOrEmpty(folderName))
+        {
+            folderName = Path.GetFileName(_archivePath);
+        }
+        string outputDirectory = Path.Combine(archiveDirectory, folderName);
+
+        if (File.Exists(outputDirectory))
+        {
+            LogHelper.Warn("右键解压：目标文件夹路径已被文件占用 " + outputDirectory);
+            MessageBox.Show(this, $"无法创建解压文件夹，同名文件已存在：\n{outputDirectory}", "解压",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(outputDirectory);
+        }
+        catch (Exception ex)
+        {
+            LogHelper.Error("创建解压文件夹失败：" + outputDirectory, ex);
+            MessageBox.Show(this, "创建解压文件夹失败：" + ex.Message, "解压",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         string mode = Settings.OverwriteMode;
         if (string.Equals(mode, "Ask", StringComparison.OrdinalIgnoreCase))
         {
