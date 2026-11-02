@@ -211,6 +211,11 @@
             <Setter Property="HorizontalContentAlignment" Value="Left" />
         </Style>
 
+        <Style x:Key="RightHeader" TargetType="DataGridColumnHeader"
+               BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="HorizontalContentAlignment" Value="Right" />
+        </Style>
+
         <Style TargetType="DataGridCell">
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="10,0" />
