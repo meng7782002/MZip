@@ -1,0 +1,35 @@
+﻿<Window x:Class="MZip.Dialogs.OverwriteDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="文件已存在" Width="470" Height="330"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        ShowInTaskbar="False" Background="White"
+        FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="13"
+        TextOptions.TextFormattingMode="Display">
+    <Grid Margin="24,22,24,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="目标目录中已存在同名文件" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
+        <TextBlock Grid.Row="1" Text="请选择本次解压的处理方式：" Margin="0,6,0,0" FontSize="12"
+                   Foreground="{StaticResource SubTextBrush}" />
+
+        <Button Grid.Row="2" Style="{StaticResource GhostButton}" Height="40" Margin="0,16,0,0" Click="Overwrite_Click"
+                HorizontalContentAlignment="Left" Padding="16,0" Content="覆盖已有文件（推荐）" />
+        <Button Grid.Row="3" Style="{StaticResource GhostButton}" Height="40" Margin="0,8,0,0" Click="Skip_Click"
+                HorizontalContentAlignment="Left" Padding="16,0" Content="跳过已存在的文件" />
+        <Button Grid.Row="4" Style="{StaticResource GhostButton}" Height="40" Margin="0,8,0,0" Click="Rename_Click"
+                HorizontalContentAlignment="Left" Padding="16,0" Content="自动重命名新文件" />
+
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="取消解压" Style="{StaticResource GhostButton}" MinWidth="96" Click="Cancel_Click" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>
