@@ -81,18 +81,22 @@ namespace MZip.Services
         }
 
         /// <summary>
-        /// 读取压缩包列表
+        /// 读取压缩包列表；codePage &gt; 0 时按指定代码页解析文件名（乱码修复）
         /// </summary>
-        public async Task<ArchiveInfo> ListAsync(string archivePath, string? password, CancellationToken token)
+        public async Task<ArchiveInfo> ListAsync(string archivePath, string? password, CancellationToken token, int codePage = 0)
         {
             EnsureEngine();
-            LogHelper.Info($"读取压缩包列表：{archivePath}");
+            LogHelper.Info($"读取压缩包列表：{archivePath}，代码页：{(codePage > 0 ? codePage.ToString() : "自动")}");
             if (!File.Exists(archivePath))
             {
                 throw new SevenZipException("压缩包不存在：" + archivePath);
             }
 
             var args = new List<string> { "l", "-slt", "-sccUTF-8", PasswordArg(password) };
+            if (codePage > 0)
+            {
+                args.Add("-mcp=" + codePage);
+            }
             args.Add(archivePath);
 
             var result = await ProcessRunner.RunAsync(SevenZipPath, args, null, null, token).ConfigureAwait(false);
@@ -195,9 +199,13 @@ namespace MZip.Services
             {
                 File.Delete(options.TargetPath);
             }
+            if (options.VolumeMB > 0)
+            {
+                DeleteVolumeSeries(options.TargetPath);
+            }
 
             string format = options.Format == "zip" ? "zip" : "7z";
-            LogHelper.Info($"开始创建压缩包：{options.TargetPath}，格式 {format}，级别 {options.Level}，来源 {options.Sources.Count} 项");
+            LogHelper.Info($"开始创建压缩包：{options.TargetPath}，格式 {format}，级别 {options.Level}，来源 {options.Sources.Count} 项，分卷 {options.VolumeMB}MB，固实 {options.Solid}");
 
             var args = new List<string>
             {
@@ -208,6 +216,14 @@ namespace MZip.Services
                 "-bb1",
                 "-sccUTF-8"
             };
+            if (options.VolumeMB > 0)
+            {
+                args.Add("-v" + options.VolumeMB + "m");
+            }
+            if (format == "7z" && options.Solid)
+            {
+                args.Add("-ms=on");
+            }
             if (!string.IsNullOrEmpty(options.Password))
             {
                 args.Add("-p" + options.Password);
@@ -229,11 +245,13 @@ namespace MZip.Services
             if (result.Canceled)
             {
                 TryDelete(options.TargetPath);
+                if (options.VolumeMB > 0) DeleteVolumeSeries(options.TargetPath);
                 throw new OperationCanceledException();
             }
             if (result.ExitCode >= 2)
             {
                 TryDelete(options.TargetPath);
+                if (options.VolumeMB > 0) DeleteVolumeSeries(options.TargetPath);
                 LogHelper.Error("创建压缩包失败：" + result.AllOutput.Trim());
                 throw new SevenZipException(BuildFriendlyMessage(result));
             }
@@ -241,7 +259,107 @@ namespace MZip.Services
             {
                 LogHelper.Warn("创建压缩包完成但存在警告：" + result.AllOutput.Trim());
             }
+
+            // ZIP 注释：7z.exe 不支持，后处理写入 EOCD 注释
+            if (format == "zip" && !string.IsNullOrEmpty(options.Comment))
+            {
+                try
+                {
+                    string commentTarget = options.VolumeMB > 0
+                        ? FindLastVolume(options.TargetPath) ?? options.TargetPath
+                        : options.TargetPath;
+                    ZipCommentWriter.SetComment(commentTarget, options.Comment);
+                    LogHelper.Info("ZIP 注释写入完成：" + commentTarget);
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.Error("ZIP 注释写入失败", ex);
+                }
+            }
             LogHelper.Info("创建压缩包完成：" + options.TargetPath);
+        }
+
+        /// <summary>
+        /// 把压缩包中单个条目解压到内存流（x -so），用于图片预览/包内 MD5
+        /// </summary>
+        public async Task<MemoryStream> ExtractEntryToStreamAsync(
+            string archivePath,
+            string entryPath,
+            string? password,
+            CancellationToken token)
+        {
+            EnsureEngine();
+            LogHelper.Info($"流式解出条目：{archivePath} -> {entryPath}");
+
+            var psi = new ProcessStartInfo(SevenZipPath)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                RedirectStandardInput = true
+            };
+            psi.ArgumentList.Add("x");
+            psi.ArgumentList.Add("-so");
+            psi.ArgumentList.Add(PasswordArg(password));
+            psi.ArgumentList.Add(archivePath);
+            psi.ArgumentList.Add(entryPath);
+
+            using var process = new Process { StartInfo = psi };
+            var stderr = new System.Text.StringBuilder();
+            process.Start();
+            try { process.StandardInput.Close(); } catch { /* ignored */ }
+
+            using var registration = token.Register(() =>
+            {
+                try { if (!process.HasExited) process.Kill(true); } catch { /* ignored */ }
+            });
+
+            Task errTask = Task.Run(async () =>
+            {
+                try
+                {
+                    string? line;
+                    while ((line = await process.StandardError.ReadLineAsync().ConfigureAwait(false)) != null)
+                    {
+                        stderr.AppendLine(line);
+                    }
+                }
+                catch { /* ignored */ }
+            }, CancellationToken.None);
+
+            var memory = new MemoryStream();
+            try
+            {
+                await process.StandardOutput.BaseStream.CopyToAsync(memory, 81920, token).ConfigureAwait(false);
+                await errTask.ConfigureAwait(false);
+                await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception) when (token.IsCancellationRequested)
+            {
+                memory.Dispose();
+                throw new OperationCanceledException();
+            }
+
+            if (token.IsCancellationRequested)
+            {
+                memory.Dispose();
+                throw new OperationCanceledException();
+            }
+
+            string errText = stderr.ToString();
+            if (process.ExitCode >= 2 || IsPasswordError(errText))
+            {
+                memory.Dispose();
+                LogHelper.Error("流式解出失败：" + errText.Trim());
+                throw new SevenZipException(
+                    IsPasswordError(errText) ? "压缩包已加密，密码错误或未提供密码。" : "解出条目失败，详情请查看日志。",
+                    IsPasswordError(errText));
+            }
+
+            memory.Position = 0;
+            LogHelper.Info($"流式解出完成：{entryPath}，{memory.Length} 字节");
+            return memory;
         }
 
         /// <summary>
@@ -402,6 +520,33 @@ namespace MZip.Services
             {
                 LogHelper.Error("清理临时文件失败：" + path, ex);
             }
+        }
+
+        /// <summary>
+        /// 删除分卷序列 xxx.001 ~ xxx.999
+        /// </summary>
+        private static void DeleteVolumeSeries(string targetPath)
+        {
+            for (int i = 1; i <= 999; i++)
+            {
+                string vol = targetPath + "." + i.ToString("000");
+                if (File.Exists(vol)) TryDelete(vol);
+            }
+        }
+
+        /// <summary>
+        /// 查找分卷序列中最后一个分卷文件
+        /// </summary>
+        private static string? FindLastVolume(string targetPath)
+        {
+            string? last = null;
+            for (int i = 1; i <= 999; i++)
+            {
+                string vol = targetPath + "." + i.ToString("000");
+                if (File.Exists(vol)) last = vol;
+                else break;
+            }
+            return last;
         }
 
         private static bool IsPasswordError(string output)
