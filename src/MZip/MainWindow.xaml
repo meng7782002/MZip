@@ -123,7 +123,18 @@
                     </Button>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="10,6">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="10,6" VerticalAlignment="Center">
+                    <TextBlock Text="文件名编码" VerticalAlignment="Center" Foreground="{StaticResource SubTextBrush}"
+                               FontSize="12" Margin="0,0,6,0" ToolTip="文件名出现乱码时切换编码重新解析" />
+                    <ComboBox x:Name="EncodingCombo" Width="118" VerticalContentAlignment="Center" Height="30"
+                              SelectionChanged="EncodingCombo_Changed" ToolTip="文件名乱码时切换编码重新解析列表">
+                        <ComboBoxItem Content="自动" Tag="0" />
+                        <ComboBoxItem Content="UTF-8" Tag="65001" />
+                        <ComboBoxItem Content="GBK" Tag="936" />
+                        <ComboBoxItem Content="Big5" Tag="950" />
+                        <ComboBoxItem Content="Shift-JIS" Tag="932" />
+                        <ComboBoxItem Content="EUC-KR" Tag="949" />
+                    </ComboBox>
                     <Button Style="{StaticResource ToolButton}" Click="Settings_Click" ToolTip="设置">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="16" VerticalAlignment="Center" Margin="0,0,7,0" />

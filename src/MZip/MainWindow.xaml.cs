@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private string? _password;
     private ArchiveInfo? _archiveInfo;
     private bool _busy;
+    private bool _suppressEncodingChange;
 
     // 程序内部剪贴板：复制条目及来源压缩包信息
     private List<string>? _copiedEntries;
@@ -56,6 +57,7 @@ public partial class MainWindow : Window
         LogHelper.Info("主窗口已加载");
         EngineText.Text = $"7-Zip {_engine.EngineVersion}";
         BuildRecentMenu();
+        InitEncodingCombo();
         UpdateCommandState();
 
         if (!_engine.IsAvailable)
@@ -121,7 +123,7 @@ public partial class MainWindow : Window
             BeginBusy("正在读取压缩包…");
             try
             {
-                ArchiveInfo info = await _engine.ListAsync(path, password, _cts!.Token);
+                ArchiveInfo info = await _engine.ListAsync(path, password, _cts!.Token, Settings.DefaultCodePage);
                 ApplyArchive(info, password);
                 _settingsService.AddRecentArchive(path);
                 BuildRecentMenu();
@@ -1243,6 +1245,40 @@ public partial class MainWindow : Window
     private void SetStatus(string text)
     {
         StatusText.Text = text;
+    }
+
+    // ==================== 文件名编码（乱码修复 FR-99） ====================
+
+    private void InitEncodingCombo()
+    {
+        _suppressEncodingChange = true;
+        foreach (ComboBoxItem item in EncodingCombo.Items)
+        {
+            if (int.TryParse(item.Tag?.ToString(), out int cp) && cp == Settings.DefaultCodePage)
+            {
+                EncodingCombo.SelectedItem = item;
+                break;
+            }
+        }
+        if (EncodingCombo.SelectedItem == null) EncodingCombo.SelectedIndex = 0;
+        _suppressEncodingChange = false;
+    }
+
+    private async void EncodingCombo_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressEncodingChange) return;
+        if (EncodingCombo.SelectedItem is not ComboBoxItem item) return;
+        if (!int.TryParse(item.Tag?.ToString(), out int codePage)) return;
+
+        Settings.DefaultCodePage = codePage;
+        _settingsService.Save();
+        LogHelper.Info("切换文件名编码：" + (codePage > 0 ? codePage.ToString() : "自动"));
+
+        if (!_busy && !string.IsNullOrEmpty(_archivePath))
+        {
+            await ReloadArchiveAsync();
+            SetStatus(codePage > 0 ? $"已按编码 {codePage} 重新解析文件名" : "已恢复自动编码");
+        }
     }
 
     private void BuildRecentMenu()
