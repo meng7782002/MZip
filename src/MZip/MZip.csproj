@@ -26,6 +26,7 @@
   <ItemGroup>
     <None Include="..\..\tools\7z.exe" Link="tools\7z.exe" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\7z.dll" Link="tools\7z.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\7z.sfx" Link="tools\7z.sfx" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\License.txt" Link="tools\License.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
