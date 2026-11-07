@@ -28,6 +28,7 @@ public partial class MainWindow : Window
 
     private readonly SevenZipEngine _engine = new SevenZipEngine();
     private readonly SettingsService _settingsService = new SettingsService();
+    private readonly PasswordVault _vault = new PasswordVault();
     private readonly ObservableCollection<ArchiveItem> _items = new ObservableCollection<ArchiveItem>();
 
     private CancellationTokenSource? _cts;
@@ -118,12 +119,17 @@ public partial class MainWindow : Window
         if (_busy) return;
 
         string? password = presetPassword;
+        bool vaultTried = presetPassword != null;
         while (true)
         {
             BeginBusy("正在读取压缩包…");
             try
             {
                 ArchiveInfo info = await _engine.ListAsync(path, password, _cts!.Token, Settings.DefaultCodePage);
+                if (!string.IsNullOrEmpty(password))
+                {
+                    _vault.Add(password);
+                }
                 ApplyArchive(info, password);
                 _settingsService.AddRecentArchive(path);
                 BuildRecentMenu();
@@ -139,6 +145,34 @@ public partial class MainWindow : Window
             }
             catch (SevenZipException ex) when (ex.IsPasswordProblem)
             {
+                // FR-101 自动尝试密码库：命中则直接打开并置顶该密码
+                if (!vaultTried && _vault.Passwords.Count > 0)
+                {
+                    vaultTried = true;
+                    int tried = 0;
+                    foreach (string candidate in _vault.Passwords.ToList())
+                    {
+                        tried++;
+                        try
+                        {
+                            ArchiveInfo info = await _engine.ListAsync(path, candidate, _cts!.Token, Settings.DefaultCodePage);
+                            _vault.Add(candidate);
+                            LogHelper.Info($"密码库自动尝试命中：第 {tried} 条");
+                            ApplyArchive(info, candidate);
+                            _settingsService.AddRecentArchive(path);
+                            BuildRecentMenu();
+                            SetStatus($"已打开（密码库第 {tried} 条命中）：{info.FileCount} 个文件");
+                            EndBusy();
+                            return;
+                        }
+                        catch (SevenZipException ex2) when (ex2.IsPasswordProblem)
+                        {
+                            continue;
+                        }
+                    }
+                    LogHelper.Info($"密码库自动尝试全部失败（共 {tried} 条），转为手动输入");
+                }
+
                 EndBusy();
                 var dialog = new PasswordDialog(Path.GetFileName(path), password != null) { Owner = this };
                 if (dialog.ShowDialog() != true || string.IsNullOrEmpty(dialog.Password))
@@ -326,6 +360,10 @@ public partial class MainWindow : Window
                 if (sourceArchivePath == null)
                 {
                     _password = password;
+                }
+                if (!string.IsNullOrEmpty(password))
+                {
+                    _vault.Add(password);
                 }
                 Settings.LastOutputDirectory = outputDirectory;
                 _settingsService.Save();

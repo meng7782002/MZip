@@ -10,6 +10,7 @@ namespace MZip.Dialogs
     {
         private readonly AppSettings _settings;
         private readonly ShellIntegrationService _shell = new ShellIntegrationService();
+        private readonly PasswordVault _vault = new PasswordVault();
 
         public SettingsWindow(AppSettings settings)
         {
@@ -21,6 +22,42 @@ namespace MZip.Dialogs
             OverwriteCombo.SelectedIndex = FindOverwriteIndex(settings.OverwriteMode);
             ExtractDeleteSourceCheck.IsChecked = settings.ExtractDeleteSource;
             RefreshIntegrationState();
+            RefreshPasswordList();
+        }
+
+        private void RefreshPasswordList()
+        {
+            PasswordList.Items.Clear();
+            foreach (string pwd in _vault.Passwords)
+            {
+                PasswordList.Items.Add(pwd);
+            }
+            if (PasswordList.Items.Count == 0)
+            {
+                PasswordList.Items.Add("（暂无记录）");
+                PasswordList.IsEnabled = false;
+            }
+            else
+            {
+                PasswordList.IsEnabled = true;
+            }
+        }
+
+        private void DeletePassword_Click(object sender, RoutedEventArgs e)
+        {
+            if (PasswordList.SelectedItem is not string pwd) return;
+            _vault.Remove(pwd);
+            RefreshPasswordList();
+        }
+
+        private void ClearPasswords_Click(object sender, RoutedEventArgs e)
+        {
+            if (PasswordList.Items.Count == 0 || !PasswordList.IsEnabled) return;
+            MessageBoxResult confirm = MessageBox.Show(this, "确定要清空密码库中的全部密码吗？",
+                "清空密码库", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+            _vault.Clear();
+            RefreshPasswordList();
         }
 
         private static int FindLevelIndex(int level)

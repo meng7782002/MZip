@@ -1,7 +1,7 @@
 ﻿<Window x:Class="MZip.Dialogs.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="设置" Width="620" Height="640"
+        Title="设置" Width="620" Height="820"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         ShowInTaskbar="False" Background="White"
         FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="13"
@@ -98,8 +98,25 @@
             </StackPanel>
         </Border>
 
-        <TextBlock Grid.Row="6" Text="设置文件以明文保存在程序目录 config/settings.json 中。"
-                   FontSize="12" Foreground="#9AA7BC" Margin="0,18,0,0" TextWrapping="Wrap" />
+        <Border Grid.Row="6" Margin="0,16,0,0" Padding="14,12" CornerRadius="10"
+                Background="#F8FAFE" BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
+            <StackPanel>
+                <TextBlock Text="密码库管理" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
+                <TextBlock Text="成功使用过的密码以明文保存在 config/passwords.json，打开加密压缩包时自动尝试。"
+                           FontSize="11" Foreground="#9AA7BC" TextWrapping="Wrap" Margin="0,4,0,0" />
+                <ListBox x:Name="PasswordList" Height="110" Margin="0,8,0,0"
+                         BorderBrush="{StaticResource LineBrush}" Background="White" />
+                <WrapPanel Margin="0,8,0,0">
+                    <Button Content="删除选中" Style="{StaticResource GhostButton}" Padding="12,6"
+                            Margin="0,0,8,0" Click="DeletePassword_Click" />
+                    <Button Content="清空全部" Style="{StaticResource GhostButton}" Padding="12,6"
+                            Click="ClearPasswords_Click" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Grid.Row="7" Text="设置文件以明文保存在程序目录 config/settings.json 中。"
+                   FontSize="12" Foreground="#9AA7BC" Margin="0,14,0,0" TextWrapping="Wrap" />
 
         <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="取消" Style="{StaticResource GhostButton}" MinWidth="96" Click="Cancel_Click" IsCancel="True" />

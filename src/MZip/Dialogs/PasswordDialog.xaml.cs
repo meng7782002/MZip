@@ -1,5 +1,6 @@
 ﻿using System.Windows;
-using System.Windows.Input;
+using System.Windows.Controls;
+using MZip.Services;
 
 namespace MZip.Dialogs
 {
@@ -15,7 +16,34 @@ namespace MZip.Dialogs
             {
                 ErrorText.Text = "密码错误，请重新输入。";
             }
+
+            var vault = new PasswordVault();
+            if (vault.Passwords.Count > 0)
+            {
+                HistoryCombo.Items.Add(new ComboBoxItem { Content = "历史密码…" });
+                foreach (string pwd in vault.Passwords)
+                {
+                    HistoryCombo.Items.Add(new ComboBoxItem { Content = pwd });
+                }
+                HistoryCombo.SelectedIndex = 0;
+            }
+            else
+            {
+                HistoryCombo.Visibility = Visibility.Collapsed;
+            }
+
             Loaded += (_, _) => PwdBox.Focus();
+        }
+
+        private void HistoryCombo_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            // 第 0 项是占位提示
+            if (HistoryCombo.SelectedIndex <= 0) return;
+            if (HistoryCombo.SelectedItem is ComboBoxItem item && item.Content is string pwd)
+            {
+                PwdBox.Password = pwd;
+                PwdBox.Focus();
+            }
         }
 
         private void Ok_Click(object sender, RoutedEventArgs e)
@@ -35,9 +63,9 @@ namespace MZip.Dialogs
             DialogResult = false;
         }
 
-        private void PwdBox_KeyDown(object sender, KeyEventArgs e)
+        private void PwdBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            if (e.Key == Key.Enter)
+            if (e.Key == System.Windows.Input.Key.Enter)
             {
                 Ok_Click(sender, e);
             }
