@@ -19,6 +19,7 @@ namespace MZip.Dialogs
             FormatCombo.SelectedIndex = string.Equals(settings.LastCompressFormat, "zip", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
             LevelCombo.SelectedIndex = FindLevelIndex(settings.CompressionLevel);
             OverwriteCombo.SelectedIndex = FindOverwriteIndex(settings.OverwriteMode);
+            ExtractDeleteSourceCheck.IsChecked = settings.ExtractDeleteSource;
             RefreshIntegrationState();
         }
 
@@ -145,6 +146,8 @@ namespace MZip.Dialogs
             {
                 _settings.OverwriteMode = overwriteItem.Tag.ToString()!;
             }
+
+            _settings.ExtractDeleteSource = ExtractDeleteSourceCheck.IsChecked == true;
 
             DialogResult = true;
         }

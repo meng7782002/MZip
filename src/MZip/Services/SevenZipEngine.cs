@@ -180,6 +180,70 @@ namespace MZip.Services
             LogHelper.Info("解压完成：" + archivePath);
         }
 
+        /// <summary>是否二层压缩包（.tar.gz / .tgz / .tar.bz2 / .tbz2 / .tar.xz / .txz）</summary>
+        public static bool IsTwoStageArchive(string archivePath)
+        {
+            string lower = archivePath.ToLowerInvariant();
+            return lower.EndsWith(".tar.gz") || lower.EndsWith(".tgz")
+                || lower.EndsWith(".tar.bz2") || lower.EndsWith(".tbz2")
+                || lower.EndsWith(".tar.xz") || lower.EndsWith(".txz");
+        }
+
+        /// <summary>
+        /// 二层压缩包一次解完（FR-98）：先解出 tar 到临时目录，再把 tar 解到最终目录，清理临时目录
+        /// </summary>
+        public async Task ExtractTwoStageAsync(
+            string archivePath,
+            string outputDirectory,
+            string? password,
+            string overwriteMode,
+            IProgress<OperationProgress>? progress,
+            CancellationToken token)
+        {
+            Directory.CreateDirectory(outputDirectory);
+            string tempDir = Path.Combine(Path.GetTempPath(), "MZip_tgz_" + Guid.NewGuid().ToString("N"));
+            LogHelper.Info($"二层解压开始：{archivePath} → {outputDirectory}（临时目录 {tempDir}）");
+
+            var stageOne = new Progress<OperationProgress>(p =>
+                progress?.Report(new OperationProgress { Percent = p.Percent * 0.5, CurrentItem = p.CurrentItem, Stage = "解出数据包" }));
+            var stageTwo = new Progress<OperationProgress>(p =>
+                progress?.Report(new OperationProgress { Percent = 50 + p.Percent * 0.5, CurrentItem = p.CurrentItem, Stage = "解出最终文件" }));
+
+            try
+            {
+                await ExtractAsync(archivePath, tempDir, password, null, "Overwrite", stageOne, token).ConfigureAwait(false);
+
+                string? tar = Directory.EnumerateFiles(tempDir, "*.tar", SearchOption.TopDirectoryOnly).FirstOrDefault();
+                if (tar == null)
+                {
+                    // 未得到 tar（内容并非 tar），直接把中间产物移动到输出目录
+                    LogHelper.Info("二层解压：内层不是 tar，直接转移产物");
+                    foreach (string file in Directory.EnumerateFiles(tempDir, "*", SearchOption.AllDirectories))
+                    {
+                        string relative = Path.GetRelativePath(tempDir, file);
+                        string dest = Path.Combine(outputDirectory, relative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                        File.Move(file, dest, true);
+                    }
+                    return;
+                }
+
+                await ExtractAsync(tar, outputDirectory, null, null, overwriteMode, stageTwo, token).ConfigureAwait(false);
+                LogHelper.Info("二层解压完成：" + archivePath);
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.Error("清理二层解压临时目录失败：" + tempDir, ex);
+                }
+            }
+        }
+
         /// <summary>
         /// 新建压缩包（目标存在时会先删除）
         /// </summary>

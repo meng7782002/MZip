@@ -14,6 +14,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -62,7 +63,17 @@
             </ComboBox>
         </Grid>
 
-        <Border Grid.Row="4" Margin="0,16,0,0" Padding="14,12" CornerRadius="10"
+        <Grid Grid.Row="4" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="130" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="解压后处理" VerticalAlignment="Center" Foreground="{StaticResource SubTextBrush}" />
+            <CheckBox x:Name="ExtractDeleteSourceCheck" Grid.Column="1" Content="解压完成后删除源压缩包（含分卷序列）"
+                      VerticalAlignment="Center" />
+        </Grid>
+
+        <Border Grid.Row="5" Margin="0,16,0,0" Padding="14,12" CornerRadius="10"
                 Background="#F8FAFE" BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
             <StackPanel>
                 <TextBlock Text="Windows 系统集成" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
@@ -87,10 +98,10 @@
             </StackPanel>
         </Border>
 
-        <TextBlock Grid.Row="5" Text="设置文件以明文保存在程序目录 config/settings.json 中。"
+        <TextBlock Grid.Row="6" Text="设置文件以明文保存在程序目录 config/settings.json 中。"
                    FontSize="12" Foreground="#9AA7BC" Margin="0,18,0,0" TextWrapping="Wrap" />
 
-        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right">
+        <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="取消" Style="{StaticResource GhostButton}" MinWidth="96" Click="Cancel_Click" IsCancel="True" />
             <Button Content="保存" Style="{StaticResource PrimaryButton}" MinWidth="96" Margin="10,0,0,0" Click="Ok_Click" IsDefault="True" />
         </StackPanel>

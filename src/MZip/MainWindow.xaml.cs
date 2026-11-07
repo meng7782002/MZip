@@ -300,12 +300,27 @@ public partial class MainWindow : Window
         var progress = new Progress<OperationProgress>(OnProgress);
         string? password = presetPassword ?? (sourceArchivePath == null ? _password : null);
 
+        // FR-97 磁盘空间不足提醒：估算需要空间 = 原始总大小 * 1.2
+        if (!CheckDiskSpace(archivePath, outputDirectory, entries))
+        {
+            return;
+        }
+
+        bool twoStage = entries == null && SevenZipEngine.IsTwoStageArchive(archivePath);
+
         while (true)
         {
             BeginBusy(selectedCount == null ? "正在解压全部内容…" : $"正在解压 {selectedCount} 个条目…");
             try
             {
-                await _engine.ExtractAsync(archivePath, outputDirectory, password, entries, mode, progress, _cts!.Token);
+                if (twoStage)
+                {
+                    await _engine.ExtractTwoStageAsync(archivePath, outputDirectory, password, mode, progress, _cts!.Token);
+                }
+                else
+                {
+                    await _engine.ExtractAsync(archivePath, outputDirectory, password, entries, mode, progress, _cts!.Token);
+                }
                 if (sourceArchivePath == null)
                 {
                     _password = password;
@@ -315,6 +330,12 @@ public partial class MainWindow : Window
                 EndBusy();
                 SetStatus("解压完成：" + outputDirectory);
                 LogHelper.Info($"解压完成，输出目录：{outputDirectory}（来源 {archivePath}）");
+
+                // FR-96 解压成功后删除源压缩包
+                if (Settings.ExtractDeleteSource && sourceArchivePath == null)
+                {
+                    DeleteSourceArchiveAfterExtract(archivePath);
+                }
 
                 MessageBoxResult ask = MessageBox.Show(this, "解压完成，是否打开输出目录？", "解压完成",
                     MessageBoxButton.YesNo, MessageBoxImage.Information);
@@ -350,6 +371,82 @@ public partial class MainWindow : Window
                 SetStatus("解压失败");
                 return;
             }
+        }
+    }
+
+    /// <summary>
+    /// FR-97 解压前检查输出盘剩余空间；不足时弹警告，返回 false 表示用户取消
+    /// </summary>
+    private bool CheckDiskSpace(string archivePath, string outputDirectory, List<string>? entries)
+    {
+        try
+        {
+            long needed = 0;
+            if (_archiveInfo != null && string.Equals(_archiveInfo.ArchivePath, archivePath, StringComparison.OrdinalIgnoreCase))
+            {
+                if (entries == null)
+                {
+                    needed = _archiveInfo.TotalSize;
+                }
+                else
+                {
+                    needed = _archiveInfo.Entries
+                        .Where(i => entries.Contains(i.FullPath))
+                        .Sum(i => i.Size);
+                }
+            }
+            if (needed <= 0) return true;
+
+            string? root = Path.GetPathRoot(Path.GetFullPath(outputDirectory));
+            if (string.IsNullOrEmpty(root)) return true;
+
+            long free = new DriveInfo(root).AvailableFreeSpace;
+            long required = (long)(needed * 1.2);
+            if (free >= required) return true;
+
+            LogHelper.Warn($"磁盘空间不足提醒：输出盘 {root} 可用 {free} 字节，预计需要 {required}");
+            MessageBoxResult result = MessageBox.Show(this,
+                $"输出目录所在磁盘（{root}）剩余空间可能不足。\n\n可用空间：{FormatBytes(free)}\n预计需要：{FormatBytes(required)}\n\n是否继续解压？",
+                "磁盘空间不足", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            return result == MessageBoxResult.Yes;
+        }
+        catch (Exception ex)
+        {
+            LogHelper.Error("磁盘空间检查失败", ex);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// FR-96 解压成功后删除源压缩包（含分卷序列），失败仅警告并记录日志
+    /// </summary>
+    private void DeleteSourceArchiveAfterExtract(string archivePath)
+    {
+        try
+        {
+            File.Delete(archivePath);
+            LogHelper.Info("解压后删除源压缩包：" + archivePath);
+
+            // 分卷序列：x.7z.001 → 删除 x.7z.002..nnn
+            if (archivePath.EndsWith(".001", StringComparison.OrdinalIgnoreCase))
+            {
+                string basePath = archivePath.Substring(0, archivePath.Length - 4);
+                for (int v = 2; v <= 999; v++)
+                {
+                    string vol = basePath + "." + v.ToString("000");
+                    if (!File.Exists(vol)) break;
+                    File.Delete(vol);
+                    LogHelper.Info("解压后删除分卷：" + vol);
+                }
+            }
+
+            CloseArchive();
+        }
+        catch (Exception ex)
+        {
+            LogHelper.Error("解压后删除源压缩包失败：" + archivePath, ex);
+            MessageBox.Show(this, "源压缩包删除失败：" + ex.Message, "删除源压缩包",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
