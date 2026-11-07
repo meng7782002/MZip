@@ -931,6 +931,14 @@ public partial class MainWindow : Window
         dialog.ShowDialog();
     }
 
+    private void BatchExtract_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        LogHelper.Info("打开批量解压窗口");
+        var window = new BatchExtractWindow { Owner = this };
+        window.ShowDialog();
+    }
+
     private void Exit_Click(object sender, RoutedEventArgs e)
     {
         Close();

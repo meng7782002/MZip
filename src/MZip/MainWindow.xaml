@@ -59,6 +59,8 @@
                 <MenuItem Header="关闭压缩包" Click="CloseArchive_Click" />
             </MenuItem>
             <MenuItem Header="工具">
+                <MenuItem Header="批量解压…" Click="BatchExtract_Click" />
+                <Separator />
                 <MenuItem Header="设置…" Click="Settings_Click" />
                 <MenuItem Header="关于" Click="About_Click" />
             </MenuItem>
