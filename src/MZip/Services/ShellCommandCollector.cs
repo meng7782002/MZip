@@ -12,10 +12,18 @@ namespace MZip.Services
     /// </summary>
     public static class ShellCommandCollector
     {
-        private const string MutexName = @"Local\MZip.Compress.Collect";
-        private const string PipeName = "MZip.Compress";
+        // 按命令隔离，避免 /zip 与 /7zsolid、/add 等多选进程互相串包
+        private static string _instanceKey = "Default";
+        private static string MutexName => @"Local\MZip.Collect." + _instanceKey;
+        private static string PipeName => "MZip.Collect." + _instanceKey;
         private const int SilenceTimeoutMs = 600;
         private const int TotalTimeoutMs = 5000;
+
+        /// <summary>设置当前进程使用的命令隔离键（需在 Collect 之前调用）</summary>
+        public static void SetInstanceKey(string key)
+        {
+            _instanceKey = string.IsNullOrWhiteSpace(key) ? "Default" : key.Trim();
+        }
 
         /// <summary>
         /// 汇总多选路径。返回 null 表示当前进程是后续实例（已把路径转发给首个实例，应直接退出）。

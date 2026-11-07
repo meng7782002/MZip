@@ -74,7 +74,32 @@ public partial class MainWindow : Window
 
         if (App.StartupCompressPaths is { Count: > 0 } compressPaths)
         {
-            Dispatcher.BeginInvoke(new Action(async () => await QuickCompressAsync(compressPaths)));
+            string mode = App.StartupQuickMode;
+            Dispatcher.BeginInvoke(new Action(async () => await QuickCompressAsync(compressPaths, mode)));
+            return;
+        }
+
+        if (App.StartupAddPaths is { Count: > 0 } addPaths)
+        {
+            Dispatcher.BeginInvoke(new Action(() => ShowCreateArchiveDialog(addPaths)));
+            return;
+        }
+
+        if (App.StartupBatchPaths is { Count: > 0 } batchPaths)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                LogHelper.Info("右键批量解压：" + batchPaths.Count + " 个压缩包");
+                var window = new BatchExtractWindow(batchPaths) { Owner = this };
+                window.ShowDialog();
+            }));
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(App.StartupRepairPath))
+        {
+            string path = App.StartupRepairPath!;
+            Dispatcher.BeginInvoke(new Action(async () => await RepairArchiveAsync(path)));
             return;
         }
 
@@ -549,8 +574,11 @@ public partial class MainWindow : Window
 
     // ==================== Windows 右键菜单入口 ====================
 
-    /// <summary>右键“使用 MZip 压缩”：在来源所在目录生成压缩包并打开</summary>
-    private async Task QuickCompressAsync(IReadOnlyList<string> sourcePaths)
+    /// <summary>
+    /// 右键压缩命令：在来源所在目录生成压缩包并打开。
+    /// mode：default=按上次格式与级别；zip=ZIP 默认参数；7zsolid=7Z+极限级别+固实
+    /// </summary>
+    private async Task QuickCompressAsync(IReadOnlyList<string> sourcePaths, string mode = "default")
     {
         if (_busy) return;
 
@@ -586,19 +614,35 @@ public partial class MainWindow : Window
         }
         if (string.IsNullOrWhiteSpace(name)) name = "压缩包";
 
-        string format = string.Equals(Settings.LastCompressFormat, "zip", StringComparison.OrdinalIgnoreCase) ? "zip" : "7z";
-        // 记忆的格式可能是 exe，右键快速压缩固定用 zip/7z
+        string format;
+        int level = Settings.CompressionLevel;
+        bool solid = false;
+        switch (mode)
+        {
+            case "zip":
+                format = "zip";
+                break;
+            case "7zsolid":
+                format = "7z";
+                level = 9;
+                solid = true;
+                break;
+            default:
+                format = string.Equals(Settings.LastCompressFormat, "zip", StringComparison.OrdinalIgnoreCase) ? "zip" : "7z";
+                break;
+        }
         string targetPath = BuildUniqueFilePath(Path.Combine(parentDirectory, name + "." + format));
 
         var options = new CreateArchiveOptions
         {
             Format = format,
-            Level = Settings.CompressionLevel,
+            Level = level,
+            Solid = solid,
             TargetPath = targetPath,
             Sources = sources
         };
 
-        LogHelper.Info($"右键压缩：{sources.Count} 个来源 → {targetPath}");
+        LogHelper.Info($"右键压缩（{mode}）：{sources.Count} 个来源 → {targetPath}");
         var progress = new Progress<OperationProgress>(OnProgress);
         BeginBusy("正在创建压缩包…");
         try
@@ -708,11 +752,22 @@ public partial class MainWindow : Window
 
     // ==================== 新建 / 添加 / 删除 ====================
 
-    private async void Create_Click(object sender, RoutedEventArgs e)
+    private void Create_Click(object sender, RoutedEventArgs e)
+    {
+        ShowCreateArchiveDialog(null);
+    }
+
+    /// <summary>弹出新建压缩对话框并执行，presetPaths 为右键“添加到压缩文件…”带入的来源</summary>
+    private async void ShowCreateArchiveDialog(IEnumerable<string>? presetPaths)
     {
         if (_busy) return;
 
         var dialog = new CreateArchiveDialog(Settings, _archivePath) { Owner = this };
+        if (presetPaths != null)
+        {
+            dialog.AddSourcePaths(presetPaths);
+            LogHelper.Info("添加到压缩文件：带入 " + presetPaths.Count() + " 个来源路径");
+        }
         if (dialog.ShowDialog() != true || dialog.Result == null) return;
 
         CreateArchiveOptions options = dialog.Result;

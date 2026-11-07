@@ -93,7 +93,9 @@
                     <Button x:Name="UnregisterMenuButton" Content="移除右键菜单" Style="{StaticResource GhostButton}"
                             Padding="12,6" Margin="0,0,8,8" Click="UnregisterMenu_Click" />
                 </WrapPanel>
-                <TextBlock Text="右键菜单：选中文件/文件夹可压缩到本目录；右键压缩包可解压到本目录或指定目录。"
+                <CheckBox x:Name="CascadeMenuCheck" Content="级联收纳到“MZip”菜单（仅 Win11 经典菜单 / Win10 生效，Win11 新菜单建议关闭）"
+                          Margin="0,2,0,0" VerticalAlignment="Center" />
+                <TextBlock Text="右键菜单：选中文件/文件夹可快速压缩为 ZIP / 高压缩比 7Z 或添加到压缩文件；右键压缩包可解压到本目录/指定目录、修复（仅 ZIP）。"
                            FontSize="11" Foreground="#9AA7BC" TextWrapping="Wrap" Margin="0,4,0,0" />
             </StackPanel>
         </Border>

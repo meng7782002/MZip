@@ -16,6 +16,14 @@ namespace MZip.Services
         private const string ClassesRoot = @"Software\Classes";
         private const string StarCompressKey = @"Software\Classes\*\shell\MZip.Compress";
         private const string DirectoryCompressKey = @"Software\Classes\Directory\shell\MZip.Compress";
+        private const string StarZipQuickKey = @"Software\Classes\*\shell\MZip.ZipQuick";
+        private const string Star7zSolidKey = @"Software\Classes\*\shell\MZip.7zSolid";
+        private const string StarAddToKey = @"Software\Classes\*\shell\MZip.AddTo";
+        private const string DirZipQuickKey = @"Software\Classes\Directory\shell\MZip.ZipQuick";
+        private const string Dir7zSolidKey = @"Software\Classes\Directory\shell\MZip.7zSolid";
+        private const string DirAddToKey = @"Software\Classes\Directory\shell\MZip.AddTo";
+        private const string StarCascadeKey = @"Software\Classes\*\shell\MZip";
+        private const string DirCascadeKey = @"Software\Classes\Directory\shell\MZip";
         private const string CapabilitiesKey = @"Software\MZip\Capabilities";
         private const string IconBackupKey = @"Software\MZip\IconBackup";
         private const string RegisteredApplicationsKey = @"Software\RegisteredApplications";
@@ -39,11 +47,13 @@ namespace MZip.Services
             return value != null && string.Equals(value.ToString(), ProgId, StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>右键菜单是否已注册</summary>
+        /// <summary>右键菜单是否已注册（平铺或级联任一模式）</summary>
         public bool IsContextMenuRegistered()
         {
-            using RegistryKey? key = Registry.CurrentUser.OpenSubKey(StarCompressKey);
-            return key != null;
+            using RegistryKey? flatKey = Registry.CurrentUser.OpenSubKey(StarCompressKey);
+            if (flatKey != null) return true;
+            using RegistryKey? cascadeKey = Registry.CurrentUser.OpenSubKey(StarCascadeKey);
+            return cascadeKey != null;
         }
 
         /// <summary>注册 .zip/.rar/.7z 文件关联与默认应用能力信息</summary>
@@ -119,32 +129,70 @@ namespace MZip.Services
             LogHelper.Info("已取消文件关联：.zip/.rar/.7z");
         }
 
-        /// <summary>注册资源管理器右键菜单（压缩 + 解压）</summary>
-        public void RegisterContextMenu()
+        /// <summary>注册资源管理器右键菜单（压缩 + 解压 + 修复），cascaded=true 时收纳到 MZip 级联菜单</summary>
+        public void RegisterContextMenu(bool cascaded)
         {
-            WriteCompressVerb(StarCompressKey);
-            WriteCompressVerb(DirectoryCompressKey);
+            // 先清理另一种模式的残留，保证同一时刻只有一种模式生效
+            UnregisterContextMenu();
 
-            foreach (string ext in ArchiveExtensions)
+            if (cascaded)
             {
-                string basePath = @"Software\Classes\SystemFileAssociations\" + ext + @"\shell";
-                WriteExtractVerb(basePath + @"\MZip.ExtractHere", "解压到本目录", " --extract-here");
-                WriteExtractVerb(basePath + @"\MZip.ExtractTo", "解压到指定目录…", " --extract-to");
+                WriteCascadeMenu(StarCascadeKey, includeCompress: true);
+                WriteCascadeMenu(DirCascadeKey, includeCompress: true);
+                foreach (string ext in ArchiveExtensions)
+                {
+                    string basePath = @"Software\Classes\SystemFileAssociations\" + ext + @"\shell\MZip";
+                    bool isZip = string.Equals(ext, ".zip", StringComparison.OrdinalIgnoreCase);
+                    WriteCascadeMenu(basePath, includeCompress: false, includeRepair: isZip);
+                }
+                LogHelper.Info("已注册资源管理器右键菜单（级联模式，Win11 需经典菜单生效）");
             }
+            else
+            {
+                WriteMenuVerb(StarCompressKey, "使用 MZip 压缩", "--compress", "Player");
+                WriteMenuVerb(DirectoryCompressKey, "使用 MZip 压缩", "--compress", "Player");
+                WriteMenuVerb(StarZipQuickKey, "压缩为同名 ZIP 文件", "/zip", "Player");
+                WriteMenuVerb(DirZipQuickKey, "压缩为同名 ZIP 文件", "/zip", "Player");
+                WriteMenuVerb(Star7zSolidKey, "压缩为高压缩比 7Z 文件", "/7zsolid", "Player");
+                WriteMenuVerb(Dir7zSolidKey, "压缩为高压缩比 7Z 文件", "/7zsolid", "Player");
+                WriteMenuVerb(StarAddToKey, "添加到压缩文件…", "/add", "Player");
+                WriteMenuVerb(DirAddToKey, "添加到压缩文件…", "/add", "Player");
 
-            LogHelper.Info("已注册资源管理器右键菜单");
+                foreach (string ext in ArchiveExtensions)
+                {
+                    string basePath = @"Software\Classes\SystemFileAssociations\" + ext + @"\shell";
+                    WriteMenuVerb(basePath + @"\MZip.ExtractHere", "解压到本目录", "--extract-here", "Single");
+                    WriteMenuVerb(basePath + @"\MZip.ExtractTo", "解压到指定目录…", "--extract-to", "Single");
+                    if (string.Equals(ext, ".zip", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // FR-112：修复仅 ZIP 可用，其余格式不注册该项
+                        WriteMenuVerb(basePath + @"\MZip.Repair", "使用 MZip 修复", "/repair", "Single");
+                    }
+                }
+                LogHelper.Info("已注册资源管理器右键菜单（平铺模式）");
+            }
         }
 
-        /// <summary>移除资源管理器右键菜单</summary>
+        /// <summary>移除资源管理器右键菜单（平铺与级联全部清理）</summary>
         public void UnregisterContextMenu()
         {
             DeleteKeyTree(StarCompressKey);
             DeleteKeyTree(DirectoryCompressKey);
+            DeleteKeyTree(StarZipQuickKey);
+            DeleteKeyTree(DirZipQuickKey);
+            DeleteKeyTree(Star7zSolidKey);
+            DeleteKeyTree(Dir7zSolidKey);
+            DeleteKeyTree(StarAddToKey);
+            DeleteKeyTree(DirAddToKey);
+            DeleteKeyTree(StarCascadeKey);
+            DeleteKeyTree(DirCascadeKey);
 
             foreach (string ext in ArchiveExtensions)
             {
                 DeleteKeyTree(@"Software\Classes\SystemFileAssociations\" + ext + @"\shell\MZip.ExtractHere");
                 DeleteKeyTree(@"Software\Classes\SystemFileAssociations\" + ext + @"\shell\MZip.ExtractTo");
+                DeleteKeyTree(@"Software\Classes\SystemFileAssociations\" + ext + @"\shell\MZip.Repair");
+                DeleteKeyTree(@"Software\Classes\SystemFileAssociations\" + ext + @"\shell\MZip");
             }
 
             LogHelper.Info("已移除资源管理器右键菜单");
@@ -177,24 +225,48 @@ namespace MZip.Services
             }
         }
 
-        private void WriteCompressVerb(string keyPath)
-        {
-            using RegistryKey key = Registry.CurrentUser.CreateSubKey(keyPath)!;
-            key.SetValue(null, "使用 MZip 压缩");
-            key.SetValue("Icon", QuotedExeWithIcon);
-            key.SetValue("MultiSelectModel", "Player");
-            using RegistryKey commandKey = key.CreateSubKey("command")!;
-            commandKey.SetValue(null, QuotedExe + " --compress \"%1\"");
-        }
-
-        private void WriteExtractVerb(string keyPath, string displayName, string argument)
+        /// <summary>写入单个右键菜单项（argument 不含引号路径，如 /zip、--compress）</summary>
+        private void WriteMenuVerb(string keyPath, string displayName, string argument, string multiSelectModel)
         {
             using RegistryKey key = Registry.CurrentUser.CreateSubKey(keyPath)!;
             key.SetValue(null, displayName);
             key.SetValue("Icon", QuotedExeWithIcon);
-            key.SetValue("MultiSelectModel", "Single");
+            key.SetValue("MultiSelectModel", multiSelectModel);
             using RegistryKey commandKey = key.CreateSubKey("command")!;
-            commandKey.SetValue(null, QuotedExe + argument + " \"%1\"");
+            commandKey.SetValue(null, QuotedExe + " " + argument + " \"%1\"");
+        }
+
+        /// <summary>
+        /// 写入级联菜单容器及其子项（SubCommands + shell 子键，纯注册表实现，仅经典菜单生效）。
+        /// includeCompress=true 用于文件/文件夹（压缩类子项）；否则为压缩包（解压类子项，ZIP 附修复）。
+        /// </summary>
+        private void WriteCascadeMenu(string containerKeyPath, bool includeCompress, bool includeRepair = false)
+        {
+            using (RegistryKey key = Registry.CurrentUser.CreateSubKey(containerKeyPath)!)
+            {
+                key.SetValue("MUIVerb", "MZip");
+                key.SetValue("Icon", QuotedExeWithIcon);
+                key.SetValue("SubCommands", string.Empty);
+                key.SetValue("MultiSelectModel", includeCompress ? "Player" : "Single");
+            }
+
+            string shellPath = containerKeyPath + @"\shell";
+            if (includeCompress)
+            {
+                WriteMenuVerb(shellPath + @"\01Compress", "使用 MZip 压缩", "--compress", "Player");
+                WriteMenuVerb(shellPath + @"\02ZipQuick", "压缩为同名 ZIP 文件", "/zip", "Player");
+                WriteMenuVerb(shellPath + @"\037zSolid", "压缩为高压缩比 7Z 文件", "/7zsolid", "Player");
+                WriteMenuVerb(shellPath + @"\04AddTo", "添加到压缩文件…", "/add", "Player");
+            }
+            else
+            {
+                WriteMenuVerb(shellPath + @"\01ExtractHere", "解压到本目录", "--extract-here", "Single");
+                WriteMenuVerb(shellPath + @"\02ExtractTo", "解压到指定目录…", "--extract-to", "Single");
+                if (includeRepair)
+                {
+                    WriteMenuVerb(shellPath + @"\03Repair", "使用 MZip 修复", "/repair", "Single");
+                }
+            }
         }
 
         /// <summary>写入扩展名文件图标，并备份原有 DefaultIcon 值</summary>

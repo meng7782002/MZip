@@ -21,6 +21,7 @@ namespace MZip.Dialogs
             LevelCombo.SelectedIndex = FindLevelIndex(settings.CompressionLevel);
             OverwriteCombo.SelectedIndex = FindOverwriteIndex(settings.OverwriteMode);
             ExtractDeleteSourceCheck.IsChecked = settings.ExtractDeleteSource;
+            CascadeMenuCheck.IsChecked = settings.CascadedMenu;
             RefreshIntegrationState();
             RefreshPasswordList();
         }
@@ -141,10 +142,12 @@ namespace MZip.Dialogs
         {
             try
             {
-                _shell.RegisterContextMenu();
+                bool cascaded = CascadeMenuCheck.IsChecked == true;
+                _settings.CascadedMenu = cascaded;
+                _shell.RegisterContextMenu(cascaded);
                 _shell.NotifyShellChanged();
                 RefreshIntegrationState();
-                LogHelper.Info("用户操作：注册右键菜单");
+                LogHelper.Info("用户操作：注册右键菜单（" + (cascaded ? "级联" : "平铺") + "）");
             }
             catch (Exception ex)
             {
@@ -185,6 +188,26 @@ namespace MZip.Dialogs
             }
 
             _settings.ExtractDeleteSource = ExtractDeleteSourceCheck.IsChecked == true;
+
+            // 级联开关保存后立即生效：已注册过菜单则按新模式重写
+            bool newCascaded = CascadeMenuCheck.IsChecked == true;
+            if (newCascaded != _settings.CascadedMenu)
+            {
+                _settings.CascadedMenu = newCascaded;
+                if (_shell.IsContextMenuRegistered())
+                {
+                    try
+                    {
+                        _shell.RegisterContextMenu(newCascaded);
+                        _shell.NotifyShellChanged();
+                        LogHelper.Info("级联菜单开关已切换并按新模式重写右键菜单：" + (newCascaded ? "级联" : "平铺"));
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.Error("切换级联模式后重写右键菜单失败", ex);
+                    }
+                }
+            }
 
             DialogResult = true;
         }
