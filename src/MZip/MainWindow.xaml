@@ -124,6 +124,9 @@
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="10,6" VerticalAlignment="Center">
+                    <TextBox x:Name="SearchBox" Width="180" Height="30" VerticalContentAlignment="Center"
+                             Style="{StaticResource InputBox}" Margin="0,0,10,0"
+                             ToolTip="按名称实时过滤包内条目" TextChanged="SearchBox_TextChanged" />
                     <TextBlock Text="文件名编码" VerticalAlignment="Center" Foreground="{StaticResource SubTextBrush}"
                                FontSize="12" Margin="0,0,6,0" ToolTip="文件名出现乱码时切换编码重新解析" />
                     <ComboBox x:Name="EncodingCombo" Width="118" VerticalContentAlignment="Center" Height="30"

@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using MZip.Dialogs;
 using MZip.Models;
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
     private ArchiveInfo? _archiveInfo;
     private bool _busy;
     private bool _suppressEncodingChange;
+    private readonly DispatcherTimer _searchDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
 
     // 程序内部剪贴板：复制条目及来源压缩包信息
     private List<string>? _copiedEntries;
@@ -49,6 +51,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         EntriesGrid.ItemsSource = _items;
+        _searchDebounce.Tick += SearchDebounce_Tick;
         UpdateCommandState();
         UpdateEmptyState();
     }
@@ -195,15 +198,17 @@ public partial class MainWindow : Window
 
     private void ApplyArchive(ArchiveInfo info, string? password)
     {
+        bool pathChanged = _archivePath != info.ArchivePath;
         _archivePath = info.ArchivePath;
         _archiveInfo = info;
         _password = password;
 
-        _items.Clear();
-        foreach (ArchiveItem item in info.Entries)
+        if (pathChanged)
         {
-            _items.Add(item);
+            // 打开新压缩包时清空搜索框，避免旧关键字过滤新列表
+            SearchBox.Text = string.Empty;
         }
+        ApplySearchFilter();
 
         ArchiveNameText.Text = Path.GetFileName(info.ArchivePath);
         ArchivePathText.Text = info.ArchivePath;
@@ -237,6 +242,7 @@ public partial class MainWindow : Window
         _archiveInfo = null;
         _password = null;
         _items.Clear();
+        SearchBox.Text = string.Empty;
         Title = "MZip 压缩解压工具";
         UpdateEmptyState();
         UpdateCommandState();
@@ -249,6 +255,45 @@ public partial class MainWindow : Window
         bool hasArchive = _archivePath != null;
         InfoCard.Visibility = hasArchive ? Visibility.Visible : Visibility.Collapsed;
         EmptyState.Visibility = hasArchive || _busy ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // ==================== 包内搜索（FR-104） ====================
+
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _searchDebounce.Stop();
+        _searchDebounce.Start();
+    }
+
+    private void SearchDebounce_Tick(object? sender, EventArgs e)
+    {
+        _searchDebounce.Stop();
+        ApplySearchFilter();
+    }
+
+    private void ApplySearchFilter()
+    {
+        if (_archiveInfo == null) return;
+        string keyword = SearchBox.Text.Trim();
+        IEnumerable<ArchiveItem> source = _archiveInfo.Entries;
+        if (!string.IsNullOrEmpty(keyword))
+        {
+            source = source.Where(i => i.FullPath.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+        }
+
+        _items.Clear();
+        int shown = 0;
+        foreach (ArchiveItem item in source)
+        {
+            _items.Add(item);
+            shown++;
+        }
+
+        if (!string.IsNullOrEmpty(keyword))
+        {
+            SetStatus($"已过滤 {shown} / 共 {_archiveInfo.Entries.Count} 项");
+        }
+        UpdateCommandState();
     }
 
     // ==================== 解压 ====================
