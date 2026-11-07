@@ -1131,6 +1131,54 @@ public partial class MainWindow : Window
         window.ShowDialog();
     }
 
+    private void HashTool_Click(object sender, RoutedEventArgs e)
+    {
+        LogHelper.Info("打开 MD5 校验工具");
+        var window = new HashToolWindow { Owner = this };
+        window.Show();
+    }
+
+    // FR-108 包内条目 MD5：流式解出选中条目并计算 MD5，弹窗展示可复制
+    private async void ComputeEntryMd5_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy || _archivePath == null) return;
+        List<ArchiveItem> selected = GetSelectedEntries();
+        if (selected.Count != 1 || selected[0].IsFolder)
+        {
+            MessageBox.Show(this, "请选择单个文件条目计算 MD5。", "计算 MD5",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        ArchiveItem item = selected[0];
+        BeginBusy($"正在计算 MD5：{item.Name}");
+        try
+        {
+            LogHelper.Info($"计算包内条目 MD5：{_archivePath} -> {item.FullPath}");
+            var hashService = new HashService();
+            using MemoryStream stream = await _engine.ExtractEntryToStreamAsync(
+                _archivePath, item.FullPath, _password, _cts!.Token);
+            stream.Position = 0;
+            HashResult result = await hashService.ComputeAsync(stream, stream.Length, null, _cts.Token);
+
+            var dialog = new EntryMd5Window(item.FullPath, result.Md5) { Owner = this };
+            EndBusy();
+            dialog.ShowDialog();
+            return;
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("已取消");
+        }
+        catch (Exception ex)
+        {
+            LogHelper.Error("计算条目 MD5 失败：" + item.FullPath, ex);
+            MessageBox.Show(this, "计算 MD5 失败：" + ex.Message, "计算 MD5",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        EndBusy();
+    }
+
     private void Exit_Click(object sender, RoutedEventArgs e)
     {
         Close();
