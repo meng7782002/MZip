@@ -97,6 +97,11 @@ public partial class App : Application
                 case "repair":
                     StartupRepairPath = e.Args.Length > 1 ? e.Args[1] : null;
                     break;
+                case "register":
+                case "unregister":
+                    ApplyShellIntegration(string.Equals(command, "register", StringComparison.OrdinalIgnoreCase));
+                    exitAfterCollect = true;
+                    break;
 
                 default:
                     StartupArchivePath = e.Args[0];
@@ -109,13 +114,43 @@ public partial class App : Application
 
         if (exitAfterCollect)
         {
-            // 辅助实例不创建主窗口，转发完成后立即退出
-            LogHelper.Info("辅助实例已完成路径转发，退出");
-            Shutdown();
+            // 辅助实例/静默注册实例不创建主窗口，处理完成后立即退出。
+            // 此时 WPF 尚未进入消息循环，Shutdown() 不会结束进程，必须直接退出。
+            LogHelper.Info("无需主窗口，程序退出");
+            Environment.Exit(0);
             return;
         }
 
         base.OnStartup(e);
+    }
+
+    /// <summary>安装/卸载时静默注册或清理文件关联与右键菜单，异常不影响安装流程</summary>
+    private static void ApplyShellIntegration(bool register)
+    {
+        try
+        {
+            var shell = new ShellIntegrationService();
+            bool cascaded = new SettingsService().Current.CascadedMenu;
+            if (register)
+            {
+                shell.RegisterFileAssociation();
+                shell.RegisterContextMenu(cascaded);
+            }
+            else
+            {
+                shell.UnregisterContextMenu();
+                shell.UnregisterFileAssociation();
+            }
+            shell.NotifyShellChanged();
+            LogHelper.Info(register
+                ? "静默注册完成：文件关联与右键菜单已写入（级联=" + cascaded + "）"
+                : "静默反注册完成：文件关联与右键菜单已移除");
+        }
+        catch (Exception ex)
+        {
+            // 注册失败不阻断安装/卸载，用户可在设置页手动重试
+            LogHelper.Error(register ? "静默注册失败" : "静默反注册失败", ex);
+        }
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

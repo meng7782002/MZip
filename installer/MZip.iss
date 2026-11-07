@@ -59,4 +59,10 @@ Name: "{group}\卸载 MZip"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\MZip"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+; 安装完成后静默注册右键菜单与压缩文件关联（失败不阻断安装，可在设置页手动重试）
+Filename: "{app}\{#MyAppExeName}"; Parameters: "/register"; Flags: runhidden waituntilterminated; StatusMsg: "正在注册右键菜单与文件关联…"
 Filename: "{app}\{#MyAppExeName}"; Description: "运行 MZip"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; 卸载前先清理本程序写入的关联与菜单（此时程序文件仍存在）
+Filename: "{app}\{#MyAppExeName}"; Parameters: "/unregister"; Flags: runhidden waituntilterminated; RunOnceId: "MZipUnregister"
