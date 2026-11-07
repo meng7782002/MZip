@@ -24,6 +24,8 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         LogHelper.Initialize();
+        // 注册代码页编码提供程序，支持 GBK/Big5/Shift-JIS 等历史编码（修复、文件名解码使用）
+        System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
         LogHelper.Info("========== MZip 启动 ==========");
         LogHelper.Info("程序目录：" + AppContext.BaseDirectory);
 

@@ -1138,6 +1138,62 @@ public partial class MainWindow : Window
         window.Show();
     }
 
+    // FR-109 修复压缩包：仅支持 ZIP，扫描本地文件头重建中央目录
+    private async void Repair_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        var dialog = new OpenFileDialog
+        {
+            Title = "选择要修复的压缩包（仅支持 ZIP）",
+            Filter = "ZIP 压缩包|*.zip|所有文件|*.*",
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        await RepairArchiveAsync(dialog.FileName);
+    }
+
+    private async Task RepairArchiveAsync(string path)
+    {
+        string ext = Path.GetExtension(path);
+        if (!string.Equals(ext, ".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(this, "暂不支持修复该格式，仅支持 ZIP 压缩包。", "修复压缩包",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            LogHelper.Info("修复：不支持的格式 " + path);
+            return;
+        }
+
+        BeginBusy("正在修复压缩包…");
+        try
+        {
+            var repairService = new ZipRepairService();
+            ZipRepairResult result = await Task.Run(() => repairService.Repair(path));
+            EndBusy();
+
+            if (result.Success)
+            {
+                SetStatus("修复完成：" + Path.GetFileName(result.OutputPath));
+                MessageBox.Show(this,
+                    $"修复完成。\n\n{result.Message}\n输出文件：{result.OutputPath}\n\n修复为尽力而为，不保证 100% 恢复，请验证修复后的文件。",
+                    "修复压缩包", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                SetStatus("修复失败");
+                MessageBox.Show(this, "修复失败：" + result.Message, "修复压缩包",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            EndBusy();
+            LogHelper.Error("修复压缩包异常：" + path, ex);
+            MessageBox.Show(this, "修复过程出错：" + ex.Message, "修复压缩包",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     // FR-108 包内条目 MD5：流式解出选中条目并计算 MD5，弹窗展示可复制
     private async void ComputeEntryMd5_Click(object sender, RoutedEventArgs e)
     {
