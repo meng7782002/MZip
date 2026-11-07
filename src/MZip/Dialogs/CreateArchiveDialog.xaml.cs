@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -26,13 +27,38 @@ namespace MZip.Dialogs
             _currentArchivePath = currentArchivePath;
             SourcesList.ItemsSource = _sources;
 
-            FormatCombo.SelectedIndex = string.Equals(settings.LastCompressFormat, "zip", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
-            LevelCombo.SelectedIndex = FindLevelIndex(settings.CompressionLevel);
+            // 回填上次压缩参数（密码不记忆）
+            var last = settings.LastCompress ?? new LastCompressOptions();
+            string format = !string.IsNullOrEmpty(last.Format) ? last.Format : settings.LastCompressFormat;
+            FormatCombo.SelectedIndex = format switch
+            {
+                "zip" => 1,
+                "exe" => 2,
+                _ => 0
+            };
+            LevelCombo.SelectedIndex = FindLevelIndex(last.Level);
+            if (last.VolumeMB > 0) VolumeBox.Text = last.VolumeMB.ToString();
+            SolidCheck.IsChecked = last.Solid;
+            DeleteSourcesCheck.IsChecked = last.DeleteSources;
+            EncryptNamesCheck.IsChecked = last.EncryptNames;
+
             UpdateFormatState();
             UpdateSourceSummary();
         }
 
-        private string SelectedFormat => FormatCombo.SelectedIndex == 1 ? "zip" : "7z";
+        private string SelectedFormat => FormatCombo.SelectedIndex switch
+        {
+            1 => "zip",
+            2 => "exe",
+            _ => "7z"
+        };
+
+        private static string FormatExtension(string format) => format switch
+        {
+            "zip" => ".zip",
+            "exe" => ".exe",
+            _ => ".7z"
+        };
 
         private int SelectedLevel
         {
@@ -152,7 +178,7 @@ namespace MZip.Dialogs
                 : (Directory.Exists(first) ? new DirectoryInfo(first).Name : Path.GetFileNameWithoutExtension(first));
             if (string.IsNullOrWhiteSpace(name)) name = "新建压缩包";
 
-            string extension = SelectedFormat == "zip" ? ".zip" : ".7z";
+            string extension = FormatExtension(SelectedFormat);
             SetTarget(Path.Combine(directory, name + extension));
         }
 
@@ -176,7 +202,7 @@ namespace MZip.Dialogs
             UpdateFormatState();
             if (_targetManual) return;
 
-            string extension = SelectedFormat == "zip" ? ".zip" : ".7z";
+            string extension = FormatExtension(SelectedFormat);
             string target = TargetBox.Text;
             if (!string.IsNullOrEmpty(target) && Path.GetExtension(target).ToLowerInvariant() != extension)
             {
@@ -186,19 +212,41 @@ namespace MZip.Dialogs
 
         private void UpdateFormatState()
         {
-            bool is7z = SelectedFormat == "7z";
-            EncryptNamesCheck.IsEnabled = is7z;
-            if (!is7z) EncryptNamesCheck.IsChecked = false;
+            if (FormatCombo == null) return;
+            string format = SelectedFormat;
+            bool is7z = format == "7z";
+            bool isExe = format == "exe";
+            bool isZip = format == "zip";
+
+            // 7Z 内核的格式支持固实与加密文件名
+            EncryptNamesCheck.IsEnabled = is7z || isExe;
+            if (!EncryptNamesCheck.IsEnabled) EncryptNamesCheck.IsChecked = false;
+            SolidCheck.IsEnabled = is7z || isExe;
+            if (!SolidCheck.IsEnabled) SolidCheck.IsChecked = false;
+
+            // EXE 不支持分卷
+            VolumeBox.IsEnabled = !isExe;
+            if (isExe) VolumeBox.Text = string.Empty;
+
+            // 仅 ZIP 支持注释
+            CommentBox.IsEnabled = isZip;
+            CommentLabel.IsEnabled = isZip;
+            if (!isZip) CommentBox.Text = string.Empty;
         }
 
         private void Browse_Click(object sender, RoutedEventArgs e)
         {
             string format = SelectedFormat;
-            string extension = format == "zip" ? ".zip" : ".7z";
+            string extension = FormatExtension(format);
             var dialog = new SaveFileDialog
             {
                 Title = "保存压缩包",
-                Filter = format == "zip" ? "ZIP 压缩包|*.zip" : "7Z 压缩包|*.7z",
+                Filter = format switch
+                {
+                    "zip" => "ZIP 压缩包|*.zip",
+                    "exe" => "自解压程序|*.exe",
+                    _ => "7Z 压缩包|*.7z"
+                },
                 DefaultExt = extension,
                 AddExtension = true
             };
@@ -241,7 +289,7 @@ namespace MZip.Dialogs
             }
 
             string format = SelectedFormat;
-            string extension = format == "zip" ? ".zip" : ".7z";
+            string extension = FormatExtension(format);
             try
             {
                 target = Path.GetFullPath(target);
@@ -272,16 +320,52 @@ namespace MZip.Dialogs
                 }
             }
 
+            int volumeMB = 0;
+            string volumeText = VolumeBox.Text.Trim();
+            if (format != "exe" && volumeText.Length > 0)
+            {
+                if (!int.TryParse(volumeText, out volumeMB) || volumeMB < 1 || volumeMB > 102400)
+                {
+                    ErrorText.Text = "分卷大小无效，请填写 1 ~ 102400 之间的整数（MB），留空表示不分卷。";
+                    return;
+                }
+            }
+
             Result = new CreateArchiveOptions
             {
                 Format = format,
                 Level = SelectedLevel,
                 Password = PwdBox.Password,
-                EncryptNames = format == "7z" && EncryptNamesCheck.IsChecked == true,
+                EncryptNames = (format == "7z" || format == "exe") && EncryptNamesCheck.IsChecked == true,
+                VolumeMB = volumeMB,
+                Solid = (format == "7z" || format == "exe") && SolidCheck.IsChecked == true,
+                Comment = format == "zip" ? CommentBox.Text.Trim() : string.Empty,
+                DeleteSources = DeleteSourcesCheck.IsChecked == true,
                 TargetPath = target,
                 Sources = _sources.ToList()
             };
+
+            // 记忆本次参数（密码除外）
+            _settings.LastCompress = new LastCompressOptions
+            {
+                Format = format,
+                Level = SelectedLevel,
+                VolumeMB = volumeMB,
+                Solid = Result.Solid,
+                DeleteSources = Result.DeleteSources,
+                EncryptNames = Result.EncryptNames
+            };
+            _settings.LastCompressFormat = format;
+
             DialogResult = true;
+        }
+
+        /// <summary>
+        /// 供命令行 /add 入口预填来源路径
+        /// </summary>
+        public void AddSourcePaths(IEnumerable<string> paths)
+        {
+            AddSources(paths.ToArray());
         }
 
         private static bool IsPathInside(string childPath, string parentDirectory)

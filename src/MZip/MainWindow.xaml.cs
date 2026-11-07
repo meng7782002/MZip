@@ -405,6 +405,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(name)) name = "压缩包";
 
         string format = string.Equals(Settings.LastCompressFormat, "zip", StringComparison.OrdinalIgnoreCase) ? "zip" : "7z";
+        // 记忆的格式可能是 exe，右键快速压缩固定用 zip/7z
         string targetPath = BuildUniqueFilePath(Path.Combine(parentDirectory, name + "." + format));
 
         var options = new CreateArchiveOptions
@@ -545,13 +546,33 @@ public partial class MainWindow : Window
         BeginBusy("正在创建压缩包…");
         try
         {
-            await _engine.CreateAsync(options, progress, _cts!.Token);
-            Settings.LastCompressFormat = options.Format;
+            if (options.SelfExtracting)
+            {
+                var sfx = new SfxService(_engine);
+                await sfx.CreateSfxAsync(options, progress, _cts!.Token);
+            }
+            else
+            {
+                await _engine.CreateAsync(options, progress, _cts!.Token);
+            }
+            Settings.LastCompressFormat = options.Format == "exe" ? "7z" : options.Format;
             Settings.CompressionLevel = options.Level;
             _settingsService.Save();
+
+            if (options.DeleteSources)
+            {
+                await DeleteSourcesAfterCompressAsync(options, progress);
+            }
+
             EndBusy();
             SetStatus("压缩包创建完成：" + options.TargetPath);
-            await OpenArchiveAsync(options.TargetPath, options.Password);
+
+            string openPath = options.TargetPath;
+            if (options.VolumeMB > 0 && !File.Exists(openPath) && File.Exists(openPath + ".001"))
+            {
+                openPath += ".001";
+            }
+            await OpenArchiveAsync(openPath, string.IsNullOrEmpty(options.Password) ? null : options.Password);
         }
         catch (OperationCanceledException)
         {
@@ -565,6 +586,50 @@ public partial class MainWindow : Window
             LogHelper.Error("创建压缩包失败：" + options.TargetPath, ex);
             MessageBox.Show(this, ex.Message, "创建压缩包失败", MessageBoxButton.OK, MessageBoxImage.Warning);
             SetStatus("创建压缩包失败");
+        }
+    }
+
+    /// <summary>
+    /// 压缩成功且校验通过后删除源文件（FR-94）
+    /// </summary>
+    private async Task DeleteSourcesAfterCompressAsync(CreateArchiveOptions options, IProgress<OperationProgress> progress)
+    {
+        string testPath = options.TargetPath;
+        if (options.VolumeMB > 0 && !File.Exists(testPath) && File.Exists(testPath + ".001"))
+        {
+            testPath += ".001";
+        }
+
+        ArchiveTestResult test = await _engine.TestAsync(testPath,
+            string.IsNullOrEmpty(options.Password) ? null : options.Password, progress, _cts!.Token);
+        if (!test.Success)
+        {
+            LogHelper.Warn("压缩后校验未通过，保留源文件：" + test.Message);
+            MessageBox.Show(this, "压缩包校验未通过，已保留源文件。\n" + test.Message,
+                "删除源文件", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var failed = new List<string>();
+        foreach (string source in options.Sources)
+        {
+            try
+            {
+                if (File.Exists(source)) File.Delete(source);
+                else if (Directory.Exists(source)) Directory.Delete(source, true);
+                LogHelper.Info("压缩后删除源文件：" + source);
+            }
+            catch (Exception ex)
+            {
+                failed.Add(source);
+                LogHelper.Error("删除源文件失败：" + source, ex);
+            }
+        }
+
+        if (failed.Count > 0)
+        {
+            MessageBox.Show(this, "以下源文件删除失败，请手动处理：\n" + string.Join("\n", failed),
+                "删除源文件", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
