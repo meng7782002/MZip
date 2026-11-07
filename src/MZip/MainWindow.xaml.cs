@@ -976,7 +976,17 @@ public partial class MainWindow : Window
         if (_busy) return;
         if (EntriesGrid.SelectedItems.Count > 0)
         {
-            await ExtractAsync(GetSelectedEntries());
+            List<ArchiveItem> selected = GetSelectedEntries();
+            // FR-105：双击图片条目弹出预览窗口
+            if (selected.Count == 1 && ImagePreviewWindow.IsImageEntry(selected[0])
+                && _archivePath != null && _archiveInfo != null)
+            {
+                var preview = new ImagePreviewWindow(_engine, _archivePath, _password,
+                    _archiveInfo.Entries, selected[0]) { Owner = this };
+                preview.Show();
+                return;
+            }
+            await ExtractAsync(selected);
         }
     }
 
