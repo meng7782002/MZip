@@ -24,6 +24,13 @@ public class ZipRepairResult
 /// </summary>
 public class ZipRepairService
 {
+    static ZipRepairService()
+    {
+        // 文件名按 bit11 判定 UTF-8，否则按 GBK 解码；需确保代码页提供程序已注册，
+        // 避免在非 WPF 启动路径（如命令行/测试）调用时 GetEncoding(936) 抛异常。
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
     private const uint LocalHeaderSig = 0x04034b50;
     private const uint CentralHeaderSig = 0x02014b50;
     private const uint EocdSig = 0x06054b50;

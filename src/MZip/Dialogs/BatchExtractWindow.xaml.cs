@@ -102,6 +102,9 @@ namespace MZip.Dialogs
 
         private void OutputMode_Changed(object sender, RoutedEventArgs e)
         {
+            // XAML 中 PerArchiveRadio 默认 IsChecked=True，会在 InitializeComponent 期间触发本事件，
+            // 此时后续控件尚未创建，需要空值保护。
+            if (UnifiedDirBox == null || UnifiedRadio == null) return;
             UnifiedDirBox.IsEnabled = UnifiedRadio.IsChecked == true;
         }
 
