@@ -6,3 +6,4 @@ logs/
 config/settings.json
 build/
 dist/
+certs/

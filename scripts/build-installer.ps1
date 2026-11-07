@@ -4,8 +4,10 @@
 .DESCRIPTION
     1. 读取项目版本号（可由 -Version 覆盖）
     2. dotnet publish 自包含发布到 build\publish
-    3. 定位 ISCC.exe 并编译 installer\MZip.iss
-    4. 输出 dist\MZip-<版本>-Setup.exe
+    3. 使用 certs\MZip-CodeSigning.pfx 对发布的主程序签名（证书缺失时跳过）
+    4. 定位 ISCC.exe 并编译 installer\MZip.iss
+    5. 对生成的安装包签名
+    6. 输出 dist\MZip-<版本>-Setup.exe
 .PARAMETER Version
     安装包版本号，默认读取 MZip.csproj 中的 Version。
 .PARAMETER SkipPublish
@@ -56,6 +58,18 @@ try {
 
     if (-not (Test-Path (Join-Path $publishDir 'MZip.exe'))) { throw "发布目录缺少 MZip.exe：$publishDir" }
 
+    # 代码签名准备：证书缺失时跳过签名，不阻断构建
+    $signScript = Join-Path $PSScriptRoot 'sign-artifacts.ps1'
+    $certFile = Join-Path $repoRoot 'certs\MZip-CodeSigning.pfx'
+    $canSign = (Test-Path $signScript) -and (Test-Path $certFile)
+    if ($canSign) {
+        Write-BuildLog '正在签名主程序 MZip.exe…'
+        & $signScript -Path (Join-Path $publishDir 'MZip.exe')
+        Write-BuildLog '主程序签名完成'
+    } else {
+        Write-BuildLog '未找到 certs\MZip-CodeSigning.pfx，跳过代码签名（可运行 scripts\setup-codesign-cert.ps1 生成证书）'
+    }
+
     $iscc = $env:INNO_SETUP_ISCC
     if (-not $iscc -or -not (Test-Path $iscc)) {
         $candidates = @(
@@ -85,6 +99,12 @@ try {
 
     $setup = Join-Path $distDir "MZip-$Version-Setup.exe"
     if (-not (Test-Path $setup)) { throw "未生成安装包：$setup" }
+
+    if ($canSign) {
+        Write-BuildLog '正在签名安装包…'
+        & $signScript -Path $setup
+        Write-BuildLog '安装包签名完成'
+    }
 
     $sizeMb = [Math]::Round((Get-Item $setup).Length / 1MB, 1)
     Write-BuildLog "构建完成：$setup（$sizeMb MB）"
